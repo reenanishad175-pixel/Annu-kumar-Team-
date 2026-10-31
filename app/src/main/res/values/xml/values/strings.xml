@@ -1,6 +1,10 @@
-
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <string name="app_name">Annu Kumar Team</string>
-    <string name="accessibility_service_description">AKT Demo Screen Assistant</string>
+
+    <string name="accessibility_service_description">
+        AKT Demo Screen Assistant
+    </string>
+
 </resources>
