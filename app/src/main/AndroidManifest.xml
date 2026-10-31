@@ -1,8 +1,40 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <application android:theme="@style/AppTheme" android:label="Annu Kumar Team" android:usesCleartextTraffic="false">
-        <activity android:name=".MainActivity" android:exported="true">
-            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:theme="@style/AppTheme"
+        android:label="Annu Kumar Team"
+        android:usesCleartextTraffic="false"
+        android:allowBackup="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
         </activity>
+
+        <service
+            android:name=".BdgAccessibilityService"
+            android:label="AKT Demo Screen Assistant"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+
+        </service>
+
     </application>
+
 </manifest>
