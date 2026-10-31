@@ -4,13 +4,14 @@ import android.app.Activity
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.text.InputType
+import android.content.Intent
+import android.net.Uri
 import android.view.Gravity
-import android.view.View
 import android.widget.*
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import java.util.Calendar
 
 class MainActivity : Activity() {
 
@@ -21,41 +22,41 @@ class MainActivity : Activity() {
     private val gold = Color.rgb(238, 190, 91)
     private val white = Color.WHITE
 
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
+    private val history = mutableListOf<String>()
+    private var strategyPaused = false
+    private var hourlyWins = 0
+    private var winHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+    private lateinit var strategySpinner: Spinner
+    private lateinit var patternSpinner: Spinner
+    private lateinit var positionSpinner: Spinner
+    private lateinit var capSpinner: Spinner
+    private lateinit var resultText: TextView
+    private lateinit var historyText: TextView
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
         auth = FirebaseAuth.getInstance()
 
-        if (auth.currentUser != null) showHome()
-        else showLogin()
+        if (auth.currentUser != null) showHome() else showLogin()
     }
 
-    private fun rounded(
-        color: Int,
-        radius: Int,
-        strokeColor: Int = Color.TRANSPARENT
-    ): GradientDrawable {
+    private fun rounded(color: Int, radius: Int): GradientDrawable {
         return GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
-            if (strokeColor != Color.TRANSPARENT) {
-                setStroke(dp(1), strokeColor)
-            }
         }
     }
 
     private fun makeLayout() {
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-        }
-
+        val scroll = ScrollView(this)
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(22), dp(30), dp(22), dp(30))
+            setPadding(dp(18), dp(24), dp(18), dp(24))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(
@@ -69,296 +70,421 @@ class MainActivity : Activity() {
         panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(24), dp(28), dp(24), dp(26))
-            background = rounded(Color.rgb(20, 37, 69), 24, gold)
-            elevation = dp(8).toFloat()
+            setPadding(dp(20), dp(24), dp(20), dp(24))
+            background = rounded(Color.rgb(20, 37, 69), 22)
         }
 
-        outer.addView(
-            panel,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
+        outer.addView(panel, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
         scroll.addView(outer)
         setContentView(scroll)
     }
 
-    private fun addBrand() {
+    private fun label(text: String, size: Float = 15f) {
         panel.addView(TextView(this).apply {
-            text = "AKT"
-            textSize = 34f
-            setTextColor(gold)
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        })
-
-        panel.addView(TextView(this).apply {
-            text = "ANNU KUMAR TEAM"
-            textSize = 22f
+            this.text = text
+            textSize = size
             setTextColor(white)
             gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
-            setPadding(0, dp(5), 0, dp(5))
-        })
-
-        panel.addView(TextView(this).apply {
-            text = "WELCOME TO YOUR TEAM"
-            textSize = 11f
-            setTextColor(gold)
-            gravity = Gravity.CENTER
-            letterSpacing = 0.15f
-            setPadding(0, 0, 0, dp(22))
+            setPadding(0, dp(8), 0, dp(8))
         })
     }
 
-    private fun addHeading(value: String) {
+    private fun heading(text: String) {
         panel.addView(TextView(this).apply {
-            text = value
+            this.text = text
             textSize = 21f
-            setTextColor(white)
+            setTextColor(gold)
             gravity = Gravity.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, dp(8), 0, dp(18))
+            setPadding(0, dp(12), 0, dp(14))
         })
     }
 
-    private fun addInput(
-        hintText: String,
-        password: Boolean = false
-    ): EditText {
+    private fun input(hintText: String, password: Boolean = false): EditText {
         val field = EditText(this).apply {
             hint = hintText
             textSize = 16f
-            setTextColor(Color.rgb(25, 35, 55))
-            setHintTextColor(Color.rgb(110, 120, 140))
-            inputType = if (password) {
-                InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_VARIATION_PASSWORD
-            } else {
-                InputType.TYPE_CLASS_PHONE
-            }
+            setTextColor(Color.BLACK)
+            setHintTextColor(Color.GRAY)
+            inputType = if (password) 129 else 3
             setSingleLine(true)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = rounded(Color.rgb(247, 248, 251), 13)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = rounded(Color.WHITE, 12)
         }
-
-        panel.addView(
-            field,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(54)
-            ).apply {
-                bottomMargin = dp(14)
-            }
-        )
+        panel.addView(field, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(52)
+        ).apply { bottomMargin = dp(12) })
         return field
     }
 
-    private fun addButton(
-        label: String,
+    private fun button(
+        text: String,
         secondary: Boolean = false,
         action: () -> Unit
     ) {
-        val button = Button(this).apply {
-            text = label
-            textSize = 15f
+        val b = Button(this).apply {
+            this.text = text
             isAllCaps = false
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textSize = 14f
             setTextColor(if (secondary) gold else navy)
-            background = if (secondary) {
-                rounded(Color.TRANSPARENT, 14, gold)
-            } else {
-                rounded(gold, 14)
-            }
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+            background = if (secondary)
+                GradientDrawable().apply {
+                    setColor(Color.TRANSPARENT)
+                    cornerRadius = dp(12).toFloat()
+                    setStroke(dp(1), gold)
+                }
+            else rounded(gold, 12)
             setOnClickListener { action() }
         }
 
-        panel.addView(
-            button,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(52)
-            ).apply {
-                bottomMargin = dp(12)
-            }
-        )
+        panel.addView(b, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
+        ).apply { bottomMargin = dp(9) })
     }
 
-    private fun addFooter() {
-        panel.addView(TextView(this).apply {
-            text = "ANNU KUMAR TEAM  •  MEMBER ACCESS"
-            textSize = 10f
-            setTextColor(Color.LTGRAY)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(12), 0, 0)
-        })
+    private fun toast(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
 
-    private fun message(value: String) {
-        Toast.makeText(this, value, Toast.LENGTH_LONG).show()
+    private fun brand() {
+        label("AKT", 32f)
+        label("ANNU KUMAR TEAM", 22f)
+        label("MEMBER ACCESS", 11f)
     }
 
     private fun loginId(number: String): String? {
         var digits = number.filter { it.isDigit() }
-
-        if (digits.startsWith("91") && digits.length == 12) {
+        if (digits.startsWith("91") && digits.length == 12)
             digits = digits.substring(2)
-        }
 
-        if (digits.length != 10 || digits[0] !in '6'..'9') {
+        if (digits.length != 10 || digits[0] !in '6'..'9')
             return null
-        }
 
         return "$digits@users.annukumar.team"
     }
 
     private fun showLogin() {
         makeLayout()
-        addBrand()
-        addHeading("लॉगिन करें")
+        brand()
+        heading("लॉगिन करें")
 
-        val phone = addInput("मोबाइल नंबर")
-        val password = addInput("पासवर्ड", true)
+        val phone = input("मोबाइल नंबर")
+        val pass = input("पासवर्ड", true)
 
-        addButton("LOGIN  •  लॉगिन करें") {
+        button("LOGIN • लॉगिन करें") {
             val id = loginId(phone.text.toString())
-            val pass = password.text.toString()
-
-            if (id == null) {
-                message("सही 10 अंकों का मोबाइल नंबर डालें")
-            } else if (pass.isBlank()) {
-                message("पासवर्ड डालें")
-            } else {
-                auth.signInWithEmailAndPassword(id, pass)
-                    .addOnSuccessListener {
-                        message("लॉगिन सफल!")
-                        showHome()
-                    }
-                    .addOnFailureListener {
-                        message("लॉगिन नहीं हुआ: ${it.localizedMessage}")
-                    }
-            }
+            if (id == null) toast("सही मोबाइल नंबर डालें")
+            else auth.signInWithEmailAndPassword(id, pass.text.toString())
+                .addOnSuccessListener { showHome() }
+                .addOnFailureListener {
+                    toast("लॉगिन नहीं हुआ: ${it.localizedMessage}")
+                }
         }
 
-        addButton("नई आईडी बनाएँ  •  REGISTER", true) {
+        button("नई आईडी बनाएँ • REGISTER", true) {
             showRegister()
         }
-
-        addFooter()
     }
 
     private fun showRegister() {
         makeLayout()
-        addBrand()
-        addHeading("नई आईडी बनाएँ")
+        brand()
+        heading("नई आईडी बनाएँ")
 
-        val phone = addInput("मोबाइल नंबर")
-        val password = addInput("नया पासवर्ड", true)
-        val confirm = addInput("पासवर्ड दोबारा डालें", true)
+        val phone = input("मोबाइल नंबर")
+        val pass = input("नया पासवर्ड", true)
+        val confirm = input("पासवर्ड दोबारा डालें", true)
 
-        addButton("REGISTER  •  रजिस्टर करें") {
+        button("REGISTER") {
             val id = loginId(phone.text.toString())
-            val pass = password.text.toString()
-            val confirmPass = confirm.text.toString()
-
             when {
-                id == null ->
-                    message("सही 10 अंकों का मोबाइल नंबर डालें")
-
-                pass.length < 6 ->
-                    message("पासवर्ड कम से कम 6 अक्षर का रखें")
-
-                pass != confirmPass ->
-                    message("दोनों पासवर्ड एक जैसे नहीं हैं")
-
-                else -> {
-                    auth.createUserWithEmailAndPassword(id, pass)
-                        .addOnSuccessListener {
-                            message("आपकी आईडी बन गई!")
-                            showHome()
-                        }
-                        .addOnFailureListener {
-                            message("रजिस्ट्रेशन नहीं हुआ: ${it.localizedMessage}")
-                        }
+                id == null -> toast("सही मोबाइल नंबर डालें")
+                pass.text.length < 6 -> toast("पासवर्ड कम से कम 6 अक्षर का रखें")
+                pass.text.toString() != confirm.text.toString() ->
+                    toast("दोनों पासवर्ड एक जैसे नहीं हैं")
+                else -> auth.createUserWithEmailAndPassword(
+                    id, pass.text.toString()
+                ).addOnSuccessListener {
+                    showHome()
+                }.addOnFailureListener {
+                    toast("रजिस्ट्रेशन नहीं हुआ: ${it.localizedMessage}")
                 }
             }
         }
 
-        addButton("लॉगिन पर वापस जाएँ", true) {
-            showLogin()
-        }
+        button("लॉगिन पर वापस जाएँ", true) { showLogin() }
+    }
 
-        addFooter()
+    private fun spinner(
+        title: String,
+        values: List<String>
+    ): Spinner {
+        label(title)
+        val s = Spinner(this)
+        s.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            values
+        )
+        panel.addView(s, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48)
+        ))
+        return s
+    }
+
+    private fun isSessionActive(): Boolean {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return hour >= 9 && hour < 23
+    }
+
+    private fun resetHourlyCounterIfNeeded() {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        if (hour != winHour) {
+            winHour = hour
+            hourlyWins = 0
+        }
     }
 
     private fun showHome() {
         makeLayout()
-        addBrand()
-        addHeading("आपका स्वागत है!")
+        brand()
+        heading("BDG WIN • DEMO CONTROL")
 
-        panel.addView(TextView(this).apply {
-            text = "आप सफलतापूर्वक लॉगिन हैं।"
-            textSize = 16f
+        label("लॉगिन सफल: ${auth.currentUser?.email ?: ""}")
+        label("केवल Demo अकाउंट इस्तेमाल करें।")
+
+        button("BDG WIN खोलें") {
+            try {
+                startActivity(Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://bdgwin68.com/#/login")
+                ))
+            } catch (e: Exception) {
+                toast("वेबसाइट नहीं खुल सकी")
+            }
+        }
+
+        heading("स्ट्रेटेजी सेटिंग")
+
+        strategySpinner = spinner(
+            "स्ट्रेटेजी चुनें",
+            listOf("Position Strategy", "Pattern Strategy", "Majority Strategy")
+        )
+
+        positionSpinner = spinner(
+            "Position चुनें (पिछले 10 रिजल्ट में)",
+            (1..10).map { "Position $it" }
+        )
+        positionSpinner.setSelection(4)
+
+        patternSpinner = spinner(
+            "Pattern में लगातार कितने रिजल्ट?",
+            listOf("2", "3", "4", "5")
+        )
+        patternSpinner.setSelection(1)
+
+        capSpinner = spinner(
+            "प्रति घंटे अधिकतम जीत",
+            listOf("3", "5")
+        )
+
+        heading("Game History")
+        historyText = TextView(this).apply {
+            text = "अभी कोई रिजल्ट दर्ज नहीं है।"
+            textSize = 14f
             setTextColor(white)
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(20))
-        })
+            setPadding(0, dp(10), 0, dp(12))
+        }
+        panel.addView(historyText)
 
-        addHeading("पासवर्ड बदलें")
+        label("नया रिजल्ट दर्ज करें")
+        button("BIG") { addResult("BIG") }
+        button("SMALL", true) { addResult("SMALL") }
+        button("RED") { addResult("RED") }
+        button("GREEN", true) { addResult("GREEN") }
 
-        val oldPassword = addInput("पुराना पासवर्ड", true)
-        val newPassword = addInput("नया पासवर्ड", true)
+        heading("Strategy Result")
+        resultText = TextView(this).apply {
+            text = "स्ट्रेटेजी चलाने के लिए नीचे दबाएँ।"
+            textSize = 16f
+            setTextColor(gold)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, dp(18))
+        }
+        panel.addView(resultText)
 
-        addButton("पासवर्ड बदलें") {
+        button("STRATEGY CHECK करें") {
+            evaluateStrategy()
+        }
+
+        button("पिछली बाज़ी WIN हुई") {
+            resetHourlyCounterIfNeeded()
+            hourlyWins++
+            if (hourlyWins >= capSpinner.selectedItem.toString().toInt()) {
+                resultText.text = "घंटे की जीत सीमा पूरी। अगली बाज़ी रोकें।"
+            } else {
+                toast("जीत दर्ज हुई: $hourlyWins")
+            }
+        }
+
+        button("पिछली बाज़ी LOSS हुई") {
+            if (strategySpinner.selectedItemPosition == 1) {
+                strategyPaused = true
+                resultText.text = "LOSS के बाद Pattern Strategy रुकी हुई है। नया Pattern बनने तक इंतज़ार करें।"
+            } else {
+                resultText.text = "LOSS दर्ज हुई।"
+            }
+        }
+
+        button("History साफ करें", true) {
+            history.clear()
+            strategyPaused = false
+            updateHistory()
+            resultText.text = "History साफ कर दी गई।"
+        }
+
+        heading("समय नियंत्रण")
+        label("सक्रिय समय: सुबह 9:00 से रात 11:00")
+        label(
+            if (isSessionActive())
+                "अभी निर्धारित समय के अंदर है।"
+            else
+                "अभी निर्धारित समय के बाहर है।"
+        )
+
+        button("पासवर्ड बदलें", true) { showChangePassword() }
+
+        button("LOGOUT • लॉगआउट करें", true) {
+            auth.signOut()
+            showLogin()
+        }
+    }
+
+    private fun addResult(value: String) {
+        history.add(0, value)
+        while (history.size > 10) history.removeAt(history.lastIndex)
+        updateHistory()
+
+        if (strategyPaused) {
+            val needed = patternSpinner.selectedItem.toString().toInt()
+            val latest = history.firstOrNull()
+            val streak = history.takeWhile { it == latest }.size
+            if (streak >= needed) {
+                strategyPaused = false
+                toast("नया Pattern मिला। Strategy फिर से जाँच सकते हैं।")
+            }
+        }
+    }
+
+    private fun updateHistory() {
+        historyText.text = if (history.isEmpty()) {
+            "अभी कोई रिजल्ट दर्ज नहीं है।"
+        } else {
+            history.mapIndexed { i, v -> "${i + 1}. $v" }
+                .joinToString("\n")
+        }
+    }
+
+    private fun evaluateStrategy() {
+        resetHourlyCounterIfNeeded()
+
+        if (!isSessionActive()) {
+            resultText.text = "अभी समय 9 AM–11 PM के बाहर है।"
+            return
+        }
+
+        if (hourlyWins >= capSpinner.selectedItem.toString().toInt()) {
+            resultText.text = "प्रति घंटे की जीत सीमा पूरी हो चुकी है।"
+            return
+        }
+
+        if (history.isEmpty()) {
+            resultText.text = "पहले Game History में रिजल्ट दर्ज करें।"
+            return
+        }
+
+        when (strategySpinner.selectedItemPosition) {
+            0 -> {
+                val pos = positionSpinner.selectedItemPosition + 1
+                val value = history.getOrNull(pos - 1)
+                resultText.text = if (value == null) {
+                    "Position $pos का रिजल्ट उपलब्ध नहीं है।"
+                } else {
+                    "Position $pos का दर्ज रिजल्ट: $value\nयह केवल रिकॉर्ड पर आधारित संकेत है।"
+                }
+            }
+
+            1 -> {
+                if (strategyPaused) {
+                    resultText.text = "Pattern Strategy LOSS के बाद रुकी हुई है।"
+                    return
+                }
+
+                val needed = patternSpinner.selectedItem.toString().toInt()
+                val latest = history.first()
+                val streak = history.takeWhile { it == latest }.size
+
+                resultText.text = if (streak >= needed) {
+                    "Pattern मिला: $streak लगातार $latest\nअगला निर्णय लेने से पहले गेम का नया रिजल्ट जाँचें।"
+                } else {
+                    "अभी $needed लगातार एक जैसे रिजल्ट नहीं मिले। WAIT"
+                }
+            }
+
+            2 -> {
+                val big = history.count { it == "BIG" }
+                val small = history.count { it == "SMALL" }
+
+                resultText.text = when {
+                    big > small -> "पिछले रिजल्ट में BIG बहुमत: $big बनाम $small"
+                    small > big -> "पिछले रिजल्ट में SMALL बहुमत: $small बनाम $big"
+                    else -> "BIG और SMALL बराबर हैं। NO BET"
+                }
+            }
+        }
+    }
+
+    private fun showChangePassword() {
+        makeLayout()
+        brand()
+        heading("पासवर्ड बदलें")
+
+        val old = input("पुराना पासवर्ड", true)
+        val new = input("नया पासवर्ड", true)
+
+        button("पासवर्ड बदलें") {
             val user = auth.currentUser
-            val old = oldPassword.text.toString()
-            val new = newPassword.text.toString()
-
             when {
-                user == null ->
-                    message("पहले लॉगिन करें")
-
-                old.isBlank() ->
-                    message("पुराना पासवर्ड डालें")
-
-                new.length < 6 ->
-                    message("नया पासवर्ड कम से कम 6 अक्षर का रखें")
-
+                user == null -> toast("पहले लॉगिन करें")
+                old.text.isBlank() -> toast("पुराना पासवर्ड डालें")
+                new.text.length < 6 -> toast("नया पासवर्ड कम से कम 6 अक्षर का रखें")
                 else -> {
                     val credential = EmailAuthProvider.getCredential(
                         user.email ?: "",
-                        old
+                        old.text.toString()
                     )
-
                     user.reauthenticate(credential)
                         .addOnSuccessListener {
-                            user.updatePassword(new)
+                            user.updatePassword(new.text.toString())
                                 .addOnSuccessListener {
-                                    message("पासवर्ड सफलतापूर्वक बदल गया")
-                                    oldPassword.text.clear()
-                                    newPassword.text.clear()
+                                    toast("पासवर्ड बदल गया")
+                                    showHome()
                                 }
                                 .addOnFailureListener {
-                                    message("पासवर्ड नहीं बदला: ${it.localizedMessage}")
+                                    toast("पासवर्ड नहीं बदला: ${it.localizedMessage}")
                                 }
                         }
                         .addOnFailureListener {
-                            message("पुराना पासवर्ड सही नहीं है")
+                            toast("पुराना पासवर्ड सही नहीं है")
                         }
                 }
             }
         }
 
-        addButton("LOGOUT  •  लॉगआउट करें", true) {
-            auth.signOut()
-            showLogin()
-        }
-
-        addFooter()
+        button("वापस जाएँ", true) { showHome() }
     }
 }
