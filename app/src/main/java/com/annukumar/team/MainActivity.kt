@@ -1,16 +1,21 @@
 package com.annukumar.team
 
 import android.app.Activity
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
 import android.net.Uri
 import android.view.Gravity
+import android.view.View
 import android.widget.*
+import android.text.InputType
 import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.EmailAuthProvider
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.Calendar
 
 class MainActivity : Activity() {
@@ -22,26 +27,48 @@ class MainActivity : Activity() {
     private val gold = Color.rgb(238, 190, 91)
     private val white = Color.WHITE
 
-    private val history = mutableListOf<String>()
-    private var strategyPaused = false
+    private val prefs by lazy {
+        getSharedPreferences("AKT_DEMO_DATA", MODE_PRIVATE)
+    }
+
+    private data class GameResult(
+        val size: String,
+        val color: String
+    )
+
+    private val history = mutableListOf<GameResult>()
+
+    private var selectedSize = ""
+    private var selectedColor = ""
     private var hourlyWins = 0
-    private var winHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    private var savedHour = -1
+    private var patternPaused = false
 
     private lateinit var strategySpinner: Spinner
-    private lateinit var patternSpinner: Spinner
     private lateinit var positionSpinner: Spinner
+    private lateinit var patternSpinner: Spinner
     private lateinit var capSpinner: Spinner
-    private lateinit var resultText: TextView
+    private lateinit var statusText: TextView
     private lateinit var historyText: TextView
+    private lateinit var screenText: TextView
+    private lateinit var resultText: TextView
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         FirebaseApp.initializeApp(this)
         auth = FirebaseAuth.getInstance()
 
-        if (auth.currentUser != null) showHome() else showLogin()
+        loadHistory()
+
+        if (auth.currentUser != null) {
+            showHome()
+        } else {
+            showLogin()
+        }
     }
 
     private fun rounded(color: Int, radius: Int): GradientDrawable {
@@ -52,11 +79,14 @@ class MainActivity : Activity() {
     }
 
     private fun makeLayout() {
-        val scroll = ScrollView(this)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+        }
+
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(24), dp(18), dp(24))
+            setPadding(dp(18), dp(25), dp(18), dp(25))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(
@@ -70,421 +100,660 @@ class MainActivity : Activity() {
         panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(20), dp(24), dp(20), dp(24))
+            setPadding(dp(20), dp(25), dp(20), dp(25))
             background = rounded(Color.rgb(20, 37, 69), 22)
         }
 
-        outer.addView(panel, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ))
+        outer.addView(
+            panel,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
         scroll.addView(outer)
         setContentView(scroll)
     }
 
-    private fun label(text: String, size: Float = 15f) {
-        panel.addView(TextView(this).apply {
+    private fun addBrand() {
+        addLabel("AKT", 32f, gold)
+        addLabel("ANNU KUMAR TEAM", 22f, white)
+        addLabel("MEMBER ACCESS", 11f, gold)
+    }
+
+    private fun addLabel(
+        text: String,
+        size: Float = 15f,
+        color: Int = white
+    ): TextView {
+        val view = TextView(this).apply {
             this.text = text
             textSize = size
-            setTextColor(white)
+            setTextColor(color)
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(8))
-        })
+        }
+
+        panel.addView(view)
+        return view
     }
 
     private fun heading(text: String) {
-        panel.addView(TextView(this).apply {
-            this.text = text
-            textSize = 21f
-            setTextColor(gold)
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, dp(12), 0, dp(14))
-        })
+        val view = addLabel(text, 21f, gold)
+        view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        view.setPadding(0, dp(15), 0, dp(12))
     }
 
-    private fun input(hintText: String, password: Boolean = false): EditText {
+    private fun addInput(
+        hintText: String,
+        password: Boolean = false
+    ): EditText {
         val field = EditText(this).apply {
             hint = hintText
             textSize = 16f
             setTextColor(Color.BLACK)
             setHintTextColor(Color.GRAY)
-            inputType = if (password) 129 else 3
+            inputType = if (password) {
+                InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
+            } else {
+                InputType.TYPE_CLASS_PHONE
+            }
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = rounded(Color.WHITE, 12)
         }
-        panel.addView(field, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(52)
-        ).apply { bottomMargin = dp(12) })
+
+        panel.addView(
+            field,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
+            ).apply {
+                bottomMargin = dp(12)
+            }
+        )
+
         return field
     }
 
-    private fun button(
+    private fun addButton(
         text: String,
         secondary: Boolean = false,
         action: () -> Unit
     ) {
-        val b = Button(this).apply {
+        val button = Button(this).apply {
             this.text = text
-            isAllCaps = false
             textSize = 14f
+            isAllCaps = false
             setTextColor(if (secondary) gold else navy)
-            background = if (secondary)
+
+            background = if (secondary) {
                 GradientDrawable().apply {
                     setColor(Color.TRANSPARENT)
                     cornerRadius = dp(12).toFloat()
                     setStroke(dp(1), gold)
                 }
-            else rounded(gold, 12)
+            } else {
+                rounded(gold, 12)
+            }
+
             setOnClickListener { action() }
         }
 
-        panel.addView(b, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(50)
-        ).apply { bottomMargin = dp(9) })
+        panel.addView(
+            button,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(50)
+            ).apply {
+                bottomMargin = dp(10)
+            }
+        )
     }
 
-    private fun toast(text: String) {
+    private fun message(text: String) {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show()
-    }
-
-    private fun brand() {
-        label("AKT", 32f)
-        label("ANNU KUMAR TEAM", 22f)
-        label("MEMBER ACCESS", 11f)
     }
 
     private fun loginId(number: String): String? {
         var digits = number.filter { it.isDigit() }
-        if (digits.startsWith("91") && digits.length == 12)
-            digits = digits.substring(2)
 
-        if (digits.length != 10 || digits[0] !in '6'..'9')
+        if (digits.startsWith("91") && digits.length == 12) {
+            digits = digits.substring(2)
+        }
+
+        if (digits.length != 10 || digits[0] !in '6'..'9') {
             return null
+        }
 
         return "$digits@users.annukumar.team"
     }
 
+    // ---------------- LOGIN ----------------
+
     private fun showLogin() {
         makeLayout()
-        brand()
+        addBrand()
         heading("लॉगिन करें")
 
-        val phone = input("मोबाइल नंबर")
-        val pass = input("पासवर्ड", true)
+        val phone = addInput("मोबाइल नंबर")
+        val password = addInput("पासवर्ड", true)
 
-        button("LOGIN • लॉगिन करें") {
+        addButton("LOGIN • लॉगिन करें") {
             val id = loginId(phone.text.toString())
-            if (id == null) toast("सही मोबाइल नंबर डालें")
-            else auth.signInWithEmailAndPassword(id, pass.text.toString())
-                .addOnSuccessListener { showHome() }
-                .addOnFailureListener {
-                    toast("लॉगिन नहीं हुआ: ${it.localizedMessage}")
-                }
+            val pass = password.text.toString()
+
+            when {
+                id == null -> message("सही मोबाइल नंबर डालें")
+                pass.isBlank() -> message("पासवर्ड डालें")
+
+                else -> auth.signInWithEmailAndPassword(id, pass)
+                    .addOnSuccessListener {
+                        message("लॉगिन सफल!")
+                        showHome()
+                    }
+                    .addOnFailureListener {
+                        message("लॉगिन नहीं हुआ: ${it.localizedMessage}")
+                    }
+            }
         }
 
-        button("नई आईडी बनाएँ • REGISTER", true) {
+        addButton("नई आईडी बनाएँ • REGISTER", true) {
             showRegister()
         }
     }
 
+    // ---------------- REGISTER ----------------
+
     private fun showRegister() {
         makeLayout()
-        brand()
+        addBrand()
         heading("नई आईडी बनाएँ")
 
-        val phone = input("मोबाइल नंबर")
-        val pass = input("नया पासवर्ड", true)
-        val confirm = input("पासवर्ड दोबारा डालें", true)
+        val phone = addInput("मोबाइल नंबर")
+        val password = addInput("नया पासवर्ड", true)
+        val confirm = addInput("पासवर्ड दोबारा डालें", true)
 
-        button("REGISTER") {
+        addButton("REGISTER") {
             val id = loginId(phone.text.toString())
+            val pass = password.text.toString()
+
             when {
-                id == null -> toast("सही मोबाइल नंबर डालें")
-                pass.text.length < 6 -> toast("पासवर्ड कम से कम 6 अक्षर का रखें")
-                pass.text.toString() != confirm.text.toString() ->
-                    toast("दोनों पासवर्ड एक जैसे नहीं हैं")
-                else -> auth.createUserWithEmailAndPassword(
-                    id, pass.text.toString()
-                ).addOnSuccessListener {
-                    showHome()
-                }.addOnFailureListener {
-                    toast("रजिस्ट्रेशन नहीं हुआ: ${it.localizedMessage}")
-                }
+                id == null ->
+                    message("सही मोबाइल नंबर डालें")
+
+                pass.length < 6 ->
+                    message("पासवर्ड कम से कम 6 अक्षर का रखें")
+
+                pass != confirm.text.toString() ->
+                    message("दोनों पासवर्ड एक जैसे नहीं हैं")
+
+                else -> auth.createUserWithEmailAndPassword(id, pass)
+                    .addOnSuccessListener {
+                        message("रजिस्ट्रेशन सफल!")
+                        showHome()
+                    }
+                    .addOnFailureListener {
+                        message("रजिस्ट्रेशन नहीं हुआ: ${it.localizedMessage}")
+                    }
             }
         }
 
-        button("लॉगिन पर वापस जाएँ", true) { showLogin() }
-    }
-
-    private fun spinner(
-        title: String,
-        values: List<String>
-    ): Spinner {
-        label(title)
-        val s = Spinner(this)
-        s.adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            values
-        )
-        panel.addView(s, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(48)
-        ))
-        return s
-    }
-
-    private fun isSessionActive(): Boolean {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        return hour >= 9 && hour < 23
-    }
-
-    private fun resetHourlyCounterIfNeeded() {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        if (hour != winHour) {
-            winHour = hour
-            hourlyWins = 0
-        }
-    }
-
-    private fun showHome() {
-        makeLayout()
-        brand()
-        heading("BDG WIN • DEMO CONTROL")
-
-        label("लॉगिन सफल: ${auth.currentUser?.email ?: ""}")
-        label("केवल Demo अकाउंट इस्तेमाल करें।")
-
-        button("BDG WIN खोलें") {
-            try {
-                startActivity(Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://bdgwin68.com/#/login")
-                ))
-            } catch (e: Exception) {
-                toast("वेबसाइट नहीं खुल सकी")
-            }
-        }
-
-        heading("स्ट्रेटेजी सेटिंग")
-
-        strategySpinner = spinner(
-            "स्ट्रेटेजी चुनें",
-            listOf("Position Strategy", "Pattern Strategy", "Majority Strategy")
-        )
-
-        positionSpinner = spinner(
-            "Position चुनें (पिछले 10 रिजल्ट में)",
-            (1..10).map { "Position $it" }
-        )
-        positionSpinner.setSelection(4)
-
-        patternSpinner = spinner(
-            "Pattern में लगातार कितने रिजल्ट?",
-            listOf("2", "3", "4", "5")
-        )
-        patternSpinner.setSelection(1)
-
-        capSpinner = spinner(
-            "प्रति घंटे अधिकतम जीत",
-            listOf("3", "5")
-        )
-
-        heading("Game History")
-        historyText = TextView(this).apply {
-            text = "अभी कोई रिजल्ट दर्ज नहीं है।"
-            textSize = 14f
-            setTextColor(white)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(12))
-        }
-        panel.addView(historyText)
-
-        label("नया रिजल्ट दर्ज करें")
-        button("BIG") { addResult("BIG") }
-        button("SMALL", true) { addResult("SMALL") }
-        button("RED") { addResult("RED") }
-        button("GREEN", true) { addResult("GREEN") }
-
-        heading("Strategy Result")
-        resultText = TextView(this).apply {
-            text = "स्ट्रेटेजी चलाने के लिए नीचे दबाएँ।"
-            textSize = 16f
-            setTextColor(gold)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(18))
-        }
-        panel.addView(resultText)
-
-        button("STRATEGY CHECK करें") {
-            evaluateStrategy()
-        }
-
-        button("पिछली बाज़ी WIN हुई") {
-            resetHourlyCounterIfNeeded()
-            hourlyWins++
-            if (hourlyWins >= capSpinner.selectedItem.toString().toInt()) {
-                resultText.text = "घंटे की जीत सीमा पूरी। अगली बाज़ी रोकें।"
-            } else {
-                toast("जीत दर्ज हुई: $hourlyWins")
-            }
-        }
-
-        button("पिछली बाज़ी LOSS हुई") {
-            if (strategySpinner.selectedItemPosition == 1) {
-                strategyPaused = true
-                resultText.text = "LOSS के बाद Pattern Strategy रुकी हुई है। नया Pattern बनने तक इंतज़ार करें।"
-            } else {
-                resultText.text = "LOSS दर्ज हुई।"
-            }
-        }
-
-        button("History साफ करें", true) {
-            history.clear()
-            strategyPaused = false
-            updateHistory()
-            resultText.text = "History साफ कर दी गई।"
-        }
-
-        heading("समय नियंत्रण")
-        label("सक्रिय समय: सुबह 9:00 से रात 11:00")
-        label(
-            if (isSessionActive())
-                "अभी निर्धारित समय के अंदर है।"
-            else
-                "अभी निर्धारित समय के बाहर है।"
-        )
-
-        button("पासवर्ड बदलें", true) { showChangePassword() }
-
-        button("LOGOUT • लॉगआउट करें", true) {
-            auth.signOut()
+        addButton("लॉगिन पर वापस जाएँ", true) {
             showLogin()
         }
     }
 
-    private fun addResult(value: String) {
-        history.add(0, value)
-        while (history.size > 10) history.removeAt(history.lastIndex)
-        updateHistory()
+    // ---------------- SPINNER ----------------
 
-        if (strategyPaused) {
-            val needed = patternSpinner.selectedItem.toString().toInt()
-            val latest = history.firstOrNull()
-            val streak = history.takeWhile { it == latest }.size
-            if (streak >= needed) {
-                strategyPaused = false
-                toast("नया Pattern मिला। Strategy फिर से जाँच सकते हैं।")
+    private fun addSpinner(
+        title: String,
+        items: List<String>
+    ): Spinner {
+        addLabel(title)
+
+        val spinner = Spinner(this)
+
+        spinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            items
+        )
+
+        panel.addView(
+            spinner,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            )
+        )
+
+        return spinner
+    }
+
+    // ---------------- HISTORY STORAGE ----------------
+
+    private fun loadHistory() {
+        history.clear()
+
+        try {
+            val json = JSONArray(
+                prefs.getString("history", "[]")
+            )
+
+            for (i in 0 until json.length()) {
+                val item = json.getJSONObject(i)
+
+                history.add(
+                    GameResult(
+                        item.optString("size"),
+                        item.optString("color")
+                    )
+                )
             }
+        } catch (_: Exception) {
+            history.clear()
         }
+
+        hourlyWins = prefs.getInt("hourlyWins", 0)
+        savedHour = prefs.getInt("savedHour", -1)
+        patternPaused = prefs.getBoolean("patternPaused", false)
+    }
+
+    private fun saveHistory() {
+        val json = JSONArray()
+
+        history.forEach {
+            json.put(
+                JSONObject().apply {
+                    put("size", it.size)
+                    put("color", it.color)
+                }
+            )
+        }
+
+        prefs.edit()
+            .putString("history", json.toString())
+            .putInt("hourlyWins", hourlyWins)
+            .putInt("savedHour", savedHour)
+            .putBoolean("patternPaused", patternPaused)
+            .apply()
     }
 
     private fun updateHistory() {
         historyText.text = if (history.isEmpty()) {
             "अभी कोई रिजल्ट दर्ज नहीं है।"
         } else {
-            history.mapIndexed { i, v -> "${i + 1}. $v" }
-                .joinToString("\n")
+            history.mapIndexed { index, item ->
+                "${index + 1}. ${item.size} / ${item.color}"
+            }.joinToString("\n")
         }
     }
 
-    private fun evaluateStrategy() {
-        resetHourlyCounterIfNeeded()
+    // ---------------- RESULT ENTRY ----------------
 
-        if (!isSessionActive()) {
-            resultText.text = "अभी समय 9 AM–11 PM के बाहर है।"
+    private fun saveResult() {
+        if (selectedSize.isBlank() || selectedColor.isBlank()) {
+            message("Big/Small और Red/Green दोनों चुनें")
             return
         }
 
-        if (hourlyWins >= capSpinner.selectedItem.toString().toInt()) {
-            resultText.text = "प्रति घंटे की जीत सीमा पूरी हो चुकी है।"
+        history.add(
+            0,
+            GameResult(selectedSize, selectedColor)
+        )
+
+        while (history.size > 10) {
+            history.removeAt(history.lastIndex)
+        }
+
+        selectedSize = ""
+        selectedColor = ""
+
+        saveHistory()
+        updateHistory()
+
+        message("रिजल्ट History में सेव हो गया")
+    }
+
+    // ---------------- TIMER ----------------
+
+    private fun sessionActive(): Boolean {
+        val hour = Calendar.getInstance()
+            .get(Calendar.HOUR_OF_DAY)
+
+        return hour >= 9 && hour < 23
+    }
+
+    private fun resetHourlyCounter() {
+        val hour = Calendar.getInstance()
+            .get(Calendar.HOUR_OF_DAY)
+
+        if (savedHour != hour) {
+            savedHour = hour
+            hourlyWins = 0
+            saveHistory()
+        }
+    }
+
+    // ---------------- STRATEGY ----------------
+
+    private fun evaluateStrategy() {
+        resetHourlyCounter()
+
+        if (!sessionActive()) {
+            resultText.text =
+                "निर्धारित समय 9 AM से 11 PM है। अभी समय के बाहर है।"
+            return
+        }
+
+        val cap = capSpinner.selectedItem.toString().toInt()
+
+        if (hourlyWins >= cap) {
+            resultText.text =
+                "प्रति घंटे की जीत सीमा पूरी हो गई। NO BET"
             return
         }
 
         if (history.isEmpty()) {
-            resultText.text = "पहले Game History में रिजल्ट दर्ज करें।"
+            resultText.text =
+                "पहले Game History में रिजल्ट दर्ज करें।"
             return
         }
 
         when (strategySpinner.selectedItemPosition) {
+
+            // POSITION STRATEGY
             0 -> {
-                val pos = positionSpinner.selectedItemPosition + 1
-                val value = history.getOrNull(pos - 1)
-                resultText.text = if (value == null) {
-                    "Position $pos का रिजल्ट उपलब्ध नहीं है।"
+                val position =
+                    positionSpinner.selectedItemPosition
+
+                val item = history.getOrNull(position)
+
+                resultText.text = if (item == null) {
+                    "इस Position का रिजल्ट उपलब्ध नहीं है।"
                 } else {
-                    "Position $pos का दर्ज रिजल्ट: $value\nयह केवल रिकॉर्ड पर आधारित संकेत है।"
+                    "Position ${position + 1}\n" +
+                        "Size: ${item.size}\n" +
+                        "Color: ${item.color}\n" +
+                        "यह पिछला रिकॉर्ड है, अगला परिणाम नहीं।"
                 }
             }
 
+            // PATTERN STRATEGY
             1 -> {
-                if (strategyPaused) {
-                    resultText.text = "Pattern Strategy LOSS के बाद रुकी हुई है।"
+                if (patternPaused) {
+                    resultText.text =
+                        "LOSS के बाद Pattern Strategy रुकी हुई है।"
                     return
                 }
 
-                val needed = patternSpinner.selectedItem.toString().toInt()
-                val latest = history.first()
-                val streak = history.takeWhile { it == latest }.size
+                val required =
+                    patternSpinner.selectedItem.toString().toInt()
 
-                resultText.text = if (streak >= needed) {
-                    "Pattern मिला: $streak लगातार $latest\nअगला निर्णय लेने से पहले गेम का नया रिजल्ट जाँचें।"
+                val latest = history.first().size
+
+                val streak = history
+                    .takeWhile { it.size == latest }
+                    .size
+
+                resultText.text = if (streak >= required) {
+                    "$streak लगातार $latest रिजल्ट मिले।\n" +
+                        "Pattern मिला। अगला रिजल्ट निश्चित नहीं है।"
                 } else {
-                    "अभी $needed लगातार एक जैसे रिजल्ट नहीं मिले। WAIT"
+                    "अभी $required लगातार समान रिजल्ट नहीं मिले।\nWAIT"
                 }
             }
 
+            // MAJORITY STRATEGY
             2 -> {
-                val big = history.count { it == "BIG" }
-                val small = history.count { it == "SMALL" }
+                val recent = history.take(10)
+
+                val big = recent.count {
+                    it.size == "BIG"
+                }
+
+                val small = recent.count {
+                    it.size == "SMALL"
+                }
 
                 resultText.text = when {
-                    big > small -> "पिछले रिजल्ट में BIG बहुमत: $big बनाम $small"
-                    small > big -> "पिछले रिजल्ट में SMALL बहुमत: $small बनाम $big"
-                    else -> "BIG और SMALL बराबर हैं। NO BET"
+                    big > small ->
+                        "BIG बहुमत: $big बनाम $small"
+
+                    small > big ->
+                        "SMALL बहुमत: $small बनाम $big"
+
+                    else ->
+                        "BIG और SMALL बराबर हैं। NO BET"
                 }
             }
         }
     }
+
+    // ---------------- DEMO DASHBOARD ----------------
+
+    private fun showHome() {
+        makeLayout()
+        addBrand()
+
+        heading("BDG WIN • DEMO CONTROL")
+
+        addLabel("लॉगिन सफल", 16f, gold)
+
+        addLabel(
+            auth.currentUser?.email ?: "",
+            12f
+        )
+
+        heading("BDG DEMO CONNECTION")
+
+        statusText = addLabel(
+            "Accessibility Service की स्थिति जाँचें।"
+        )
+
+        addButton("ACCESSIBILITY SETTINGS खोलें") {
+            startActivity(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            )
+        }
+
+        addButton("BDG WIN खोलें") {
+            try {
+                startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://bdgwin68.com/#/login")
+                    )
+                )
+            } catch (_: Exception) {
+                message("BDG वेबसाइट नहीं खुल सकी")
+            }
+        }
+
+        addButton("स्क्रीन टेक्स्ट अपडेट करें", true) {
+            refreshScreenText()
+        }
+
+        heading("स्क्रीन से पढ़ी गई जानकारी")
+
+        screenText = addLabel(
+            "अभी कोई स्क्रीन जानकारी उपलब्ध नहीं है।",
+            13f
+        )
+
+        heading("STRATEGY CONTROL")
+
+        strategySpinner = addSpinner(
+            "Strategy चुनें",
+            listOf(
+                "Position Strategy",
+                "Pattern Strategy",
+                "Majority Strategy"
+            )
+        )
+
+        positionSpinner = addSpinner(
+            "Position चुनें",
+            (1..10).map { "Position $it" }
+        )
+
+        positionSpinner.setSelection(4)
+
+        patternSpinner = addSpinner(
+            "लगातार कितने समान रिजल्ट?",
+            listOf("2", "3", "4", "5")
+        )
+
+        patternSpinner.setSelection(1)
+
+        capSpinner = addSpinner(
+            "प्रति घंटे जीत की सीमा",
+            listOf("3", "5")
+        )
+
+        heading("GAME HISTORY")
+
+        historyText = addLabel(
+            "अभी कोई रिजल्ट दर्ज नहीं है।",
+            14f
+        )
+
+        updateHistory()
+
+        addLabel("पहले Size चुनें")
+
+        addButton("BIG") {
+            selectedSize = "BIG"
+            message("BIG चुना गया")
+        }
+
+        addButton("SMALL", true) {
+            selectedSize = "SMALL"
+            message("SMALL चुना गया")
+        }
+
+        addLabel("अब Color चुनें")
+
+        addButton("RED") {
+            selectedColor = "RED"
+            message("RED चुना गया")
+        }
+
+        addButton("GREEN", true) {
+            selectedColor = "GREEN"
+            message("GREEN चुना गया")
+        }
+
+        addButton("रिजल्ट History में सेव करें") {
+            saveResult()
+        }
+
+        heading("STRATEGY RESULT")
+
+        resultText = addLabel(
+            "Strategy Check दबाएँ।",
+            15f
+        )
+
+        addButton("STRATEGY CHECK करें") {
+            evaluateStrategy()
+        }
+
+        addButton("पिछली बाज़ी WIN हुई") {
+            resetHourlyCounter()
+            hourlyWins++
+            saveHistory()
+
+            message("जीत दर्ज हुई: $hourlyWins")
+        }
+
+        addButton("पिछली बाज़ी LOSS हुई") {
+            if (strategySpinner.selectedItemPosition == 1) {
+                patternPaused = true
+            }
+
+            saveHistory()
+
+            resultText.text =
+                "LOSS दर्ज हुई। Pattern Strategy रोक दी गई।"
+        }
+
+        addButton("Pattern फिर शुरू करें", true) {
+            patternPaused = false
+            saveHistory()
+            message("Pattern Strategy फिर से चालू की गई")
+        }
+
+        addButton("History साफ करें", true) {
+            history.clear()
+            saveHistory()
+            updateHistory()
+            message("History साफ हो गई")
+        }
+
+        heading("TIME CONTROL")
+
+        addLabel("सक्रिय समय: सुबह 9 बजे से रात 11 बजे तक")
+
+        addLabel(
+            if (sessionActive()) {
+                "अभी निर्धारित समय के अंदर है।"
+            } else {
+                "अभी निर्धारित समय के बाहर है।"
+            }
+        )
+
+        addLabel(
+            "इस संस्करण में समय की जाँच होती है; " +
+                "अपने-आप बैकग्राउंड Restart नहीं होता।",
+            12f
+        )
+
+        heading("ACCOUNT SETTINGS")
+
+        addButton("पासवर्ड बदलें", true) {
+            showChangePassword()
+        }
+
+        addButton("LOGOUT", true) {
+            auth.signOut()
+            showLogin()
+        }
+
+        refreshScreenText()
+    }
+
+    // ---------------- SCREEN TEXT ----------------
+
+    private fun refreshScreenText() {
+        val connected =
+            BdgAccessibilityService.serviceConnected
+
+        statusText.text = if (connected) {
+            "Accessibility Service: CONNECTED"
+        } else {
+            "Accessibility Service: NOT CONNECTED"
+        }
+
+        val text =
+            BdgAccessibilityService.latestScreenText
+
+        screenText.text = if (text.isBlank()) {
+            "स्क्रीन से अभी टेक्स्ट नहीं मिला।"
+        } else {
+            text.take(3000)
+        }
+    }
+
+    // ---------------- CHANGE PASSWORD ----------------
 
     private fun showChangePassword() {
         makeLayout()
-        brand()
+        addBrand()
         heading("पासवर्ड बदलें")
 
-        val old = input("पुराना पासवर्ड", true)
-        val new = input("नया पासवर्ड", true)
-
-        button("पासवर्ड बदलें") {
-            val user = auth.currentUser
-            when {
-                user == null -> toast("पहले लॉगिन करें")
-                old.text.isBlank() -> toast("पुराना पासवर्ड डालें")
-                new.text.length < 6 -> toast("नया पासवर्ड कम से कम 6 अक्षर का रखें")
-                else -> {
-                    val credential = EmailAuthProvider.getCredential(
-                        user.email ?: "",
-                        old.text.toString()
-                    )
-                    user.reauthenticate(credential)
-                        .addOnSuccessListener {
-                            user.updatePassword(new.text.toString())
-                                .addOnSuccessListener {
-                                    toast("पासवर्ड बदल गया")
-                                    showHome()
-                                }
-                                .addOnFailureListener {
-                                    toast("पासवर्ड नहीं बदला: ${it.localizedMessage}")
-                                }
-                        }
-                        .addOnFailureListener {
-                            toast("पुराना पासवर्ड सही नहीं है")
-                        }
-                }
-            }
-        }
-
-        button("वापस जाएँ", true) { showHome() }
-    }
-}
+        val oldPassword = addInput(
+     
