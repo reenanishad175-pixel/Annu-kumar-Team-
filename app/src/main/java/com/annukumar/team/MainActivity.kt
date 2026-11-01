@@ -17,6 +17,10 @@ import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.FirebaseException
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 /**
  * BDG WIN companion with a local paper tracker.
@@ -36,6 +40,10 @@ class MainActivity : Activity() {
     private lateinit var startButton: Button
     private lateinit var phone: EditText
     private lateinit var otp: EditText
+    private lateinit var telegramToken: EditText
+    private lateinit var telegramChatId: EditText
+    private lateinit var telegramEnabled: CheckBox
+    private val telegramExecutor = Executors.newSingleThreadExecutor()
     private var tracking = false
     private var lastPeriod = ""
     private var timerName = "Not detected"
@@ -132,6 +140,28 @@ class MainActivity : Activity() {
         })
         predictionView = text("Next paper prediction: —", 16f)
         body.addView(predictionView)
+        body.addView(text("TELEGRAM PREDICTION ALERTS", 18f))
+        body.addView(text("Bot token और Chat ID डालें। ये केवल इस फोन की private app preferences में सेव होंगे.", 12f))
+        telegramToken = EditText(this).apply {
+            hint = "Telegram Bot Token"
+            setSingleLine(true)
+            setText(prefs.getString("telegram_bot_token", ""))
+        }
+        telegramChatId = EditText(this).apply {
+            hint = "Telegram Chat ID"
+            setSingleLine(true)
+            setText(prefs.getString("telegram_chat_id", ""))
+        }
+        telegramEnabled = CheckBox(this).apply {
+            text = "हर नई Prediction Telegram पर भेजें"
+            isChecked = prefs.getBoolean("telegram_enabled", false)
+            setTextColor(Color.rgb(35, 45, 60))
+        }
+        body.addView(telegramToken)
+        body.addView(telegramChatId)
+        body.addView(telegramEnabled)
+        body.addView(btn("Save Telegram Settings") { saveTelegramSettings() })
+        body.addView(btn("Send Telegram Test Message") { saveTelegramSettings(); sendTelegramMessage("Annu Kumar Team: Telegram test message. Alerts are connected.") })
         startButton = btn("START PAPER TRACKER") { toggleTracker() }
         body.addView(startButton)
         body.addView(btn("Read website now") { readPage() })
@@ -235,7 +265,57 @@ class MainActivity : Activity() {
         while (history.size > 100) history.removeAt(history.lastIndex)
         predictionView.text = "Paper prediction: " + digit + " (" + side + ")\\nPeriod: " + period
         renderHistory()
-        status.text = "Paper prediction recorded. No wager was submitted."
+        if (telegramEnabled.isChecked) {
+            val strategyName = arrayOf("Frequency", "Trend", "Conservative")[strategy]
+            val message = "📊 ANNU KUMAR TEAM\\nGame: WinGo\\nTimer: $timerName\\nPeriod: $period\\nStrategy: $strategyName\\nPrediction: $digit ($side)\\nPaper stake reference: ₹$stake\\nNote: Prediction only; no bet was submitted."
+            sendTelegramMessage(message)
+        }
+        status.text = "Prediction recorded. Telegram alert queued if enabled. No wager was submitted."
+    }
+
+    private fun saveTelegramSettings() {
+        prefs.edit()
+            .putString("telegram_bot_token", telegramToken.text.toString().trim())
+            .putString("telegram_chat_id", telegramChatId.text.toString().trim())
+            .putBoolean("telegram_enabled", telegramEnabled.isChecked)
+            .apply()
+        status.text = "Telegram settings saved on this device."
+    }
+
+    private fun sendTelegramMessage(message: String) {
+        val token = telegramToken.text.toString().trim()
+        val chatId = telegramChatId.text.toString().trim()
+        if (token.isBlank() || chatId.isBlank()) {
+            status.text = "Telegram Bot Token और Chat ID भरें।"
+            return
+        }
+        telegramExecutor.execute {
+            var connection: HttpURLConnection? = null
+            try {
+                val endpoint = URL("https://api.telegram.org/bot" + token + "/sendMessage")
+                connection = (endpoint.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                }
+                val payload = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") +
+                    "&text=" + URLEncoder.encode(message, "UTF-8")
+                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val response = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                    ?.bufferedReader()?.use { it.readText() } ?: ""
+                val ok = code in 200..299 && JSONObject(response).optBoolean("ok", false)
+                runOnUiThread {
+                    status.text = if (ok) "Telegram message sent." else "Telegram send failed (HTTP $code). Check bot token, Chat ID and start the bot."
+                }
+            } catch (e: Exception) {
+                runOnUiThread { status.text = "Telegram error: " + (e.localizedMessage ?: "network error") }
+            } finally {
+                connection?.disconnect()
+            }
+        }
     }
 
     private fun toggleTracker() {
@@ -261,6 +341,7 @@ class MainActivity : Activity() {
     override fun onResume() { super.onResume(); if (::web.isInitialized) web.onResume() }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        telegramExecutor.shutdown()
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
