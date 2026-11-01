@@ -2,6 +2,9 @@ package com.annukumar.team
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.view.View
 import android.webkit.WebChromeClient
@@ -70,6 +73,10 @@ class MainActivity : Activity() {
         restoreTrackerState()
         setContentView(makeUi())
         updateAccount()
+        SessionScheduler.scheduleAll(this)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 701)
+        }
         web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!)
     }
 
@@ -247,6 +254,7 @@ class MainActivity : Activity() {
             periodView.text = "Period: " + period
             if (tracking && period != lastPeriod) {
                 lastPeriod = period
+                persistTrackerState()
                 addPaperPrediction(period)
             }
         } else {
@@ -276,13 +284,13 @@ class MainActivity : Activity() {
         val period = if (lastPeriod.isNotBlank()) lastPeriod else "Not detected"
         val signal = summary.signal
         val message = if (signal == null) {
-            "Game: WinGo\\nTimer: $timerName\\nPeriod: $period\\nBET SKIP"
+            "Game: WinGo\nTimer: $timerName\nPeriod: $period\nBET SKIP"
         } else {
-            "Game: WinGo\\nTimer: $timerName\\nPeriod: $period\\nLevel: $level\\nPrediction: $signal"
+            "Game: WinGo\nTimer: $timerName\nPeriod: $period\n$signal"
         }
         predictionView.text = if (signal == null) "BET SKIP\\n${summary.reason}" else
-            "DEMO OBSERVATION: $signal\\nLevel: $level • Period: $period\\n${summary.reason}"
-        history.add(0, "BIG: ${summary.big} | SMALL: ${summary.small} | ${message.replace("\\n", " • ")}")
+            "DEMO OBSERVATION: $signal\nLevel: $level • Period: $period\n${summary.reason}"
+        history.add(0, "BIG: ${summary.big} | SMALL: ${summary.small} | ${message.replace("\n", " • ")}")
         while (history.size > 100) history.removeAt(history.lastIndex)
         renderHistory()
         status.text = "Paper analysis only. Recent results do not predict or guarantee the next outcome."
