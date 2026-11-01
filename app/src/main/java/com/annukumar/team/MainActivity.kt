@@ -73,6 +73,8 @@ class MainActivity : Activity() {
         FirebaseApp.initializeApp(this)
         restoreTrackerState()
         setContentView(makeUi())
+        renderHistory()
+        predictionView.text = "Session WIN: $sessionWins/5 • Level: $level • Consecutive LOSS: $consecutiveLosses/8"
         updateAccount()
         SessionScheduler.scheduleAll(this)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -151,9 +153,10 @@ class MainActivity : Activity() {
         predictionView = text("Demo observation: waiting for verified result history", 16f)
         body.addView(predictionView)
         body.addView(text("TELEGRAM PREDICTION ALERTS", 18f))
-        body.addView(text("Bot token और Chat ID डालें। ये केवल इस फोन की private app preferences में सेव होंगे.", 12f))
+        body.addView(text("Bot token और Chat ID इस फोन के app-private storage में सेव होंगे; इन्हें किसी के साथ साझा न करें.", 12f))
         telegramToken = EditText(this).apply {
             hint = "Telegram Bot Token"
+            inputType = 129
             setSingleLine(true)
             setText(prefs.getString("telegram_bot_token", ""))
         }
