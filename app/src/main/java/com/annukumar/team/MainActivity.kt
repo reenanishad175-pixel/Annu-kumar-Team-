@@ -263,11 +263,11 @@ class MainActivity : Activity() {
         val entry = "Period " + period + " • " + timerName + " • Digit " + digit + " • " + side + " • Paper ₹" + stake
         history.add(0, entry)
         while (history.size > 100) history.removeAt(history.lastIndex)
-        predictionView.text = "Paper prediction: " + digit + " (" + side + ")\\nPeriod: " + period
+        predictionView.text = "Paper prediction: " + digit + " (" + side + ")\nPeriod: " + period
         renderHistory()
         if (telegramEnabled.isChecked) {
             val strategyName = arrayOf("Frequency", "Trend", "Conservative")[strategy]
-            val message = "📊 ANNU KUMAR TEAM\\nGame: WinGo\\nTimer: $timerName\\nPeriod: $period\\nStrategy: $strategyName\\nPrediction: $digit ($side)\\nPaper stake reference: ₹$stake\\nNote: Prediction only; no bet was submitted."
+            val message = "📊 ANNU KUMAR TEAM\nGame: WinGo\nTimer: $timerName\nPeriod: $period\nStrategy: $strategyName\nPrediction: $digit ($side)\nPaper stake reference: ₹$stake\nNote: Prediction only; no bet was submitted."
             sendTelegramMessage(message)
         }
         status.text = "Prediction recorded. Telegram alert queued if enabled. No wager was submitted."
@@ -334,7 +334,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderHistory() {
-        historyView.text = if (history.isEmpty()) "No paper entries yet." else history.joinToString("\\n")
+        historyView.text = if (history.isEmpty()) "No paper entries yet." else history.joinToString("\n")
     }
 
     override fun onPause() { super.onPause(); if (::web.isInitialized) web.onPause() }
