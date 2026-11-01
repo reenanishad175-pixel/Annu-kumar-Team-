@@ -19,6 +19,7 @@ import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.FirebaseException
 import org.json.JSONObject
+import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 import java.net.HttpURLConnection
@@ -270,6 +271,7 @@ class MainActivity : Activity() {
         val entry = "Period " + period + " • " + timerName + " • Awaiting verified result history"
         history.add(0, entry)
         while (history.size > 100) history.removeAt(history.lastIndex)
+        persistTrackerState()
         predictionView.text = "Prediction: WAITING FOR VERIFIED RESULTS\\nPeriod: " + period
         renderHistory()
         status.text = "Period detected. Prediction and Telegram signal are paused until actual BIG/SMALL result history can be verified."
@@ -292,6 +294,7 @@ class MainActivity : Activity() {
             "DEMO OBSERVATION: $signal\nLevel: $level • Period: $period\n${summary.reason}"
         history.add(0, "BIG: ${summary.big} | SMALL: ${summary.small} | ${message.replace("\n", " • ")}")
         while (history.size > 100) history.removeAt(history.lastIndex)
+        persistTrackerState()
         renderHistory()
         status.text = "Paper analysis only. Recent results do not predict or guarantee the next outcome."
         if (telegramEnabled.isChecked) sendTelegramMessage(message)
@@ -341,6 +344,13 @@ class MainActivity : Activity() {
         consecutiveLosses = prefs.getInt("consecutive_losses", 0).coerceIn(0, 8)
         sessionEnded = prefs.getBoolean("session_ended", false)
         lastPeriod = prefs.getString("last_period", "") ?: ""
+        val savedHistory = prefs.getString("paper_history", null)
+        if (!savedHistory.isNullOrBlank()) {
+            try {
+                val array = JSONArray(savedHistory)
+                for (i in 0 until array.length()) history.add(array.getString(i))
+            } catch (_: Exception) { history.clear() }
+        }
     }
 
     private fun persistTrackerState() {
@@ -350,6 +360,7 @@ class MainActivity : Activity() {
             .putInt("consecutive_losses", consecutiveLosses)
             .putBoolean("session_ended", sessionEnded)
             .putString("last_period", lastPeriod)
+            .putString("paper_history", JSONArray(history.take(100)).toString())
             .apply()
     }
 
