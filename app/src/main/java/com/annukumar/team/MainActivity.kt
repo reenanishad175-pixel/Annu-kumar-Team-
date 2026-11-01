@@ -246,7 +246,9 @@ class MainActivity : Activity() {
           for (const e of nodes) {
             const t = ((e.getAttribute('data-result') || e.getAttribute('aria-label') ||
               e.getAttribute('title') || e.innerText || e.textContent || '').trim().toUpperCase();
-            if (/^(BIG|SMALL)$/.test(t) && !outcomes.includes(t)) outcomes.push(t);
+            const childRepeats = Array.from(e.children).some(ch =>
+              (ch.innerText || ch.textContent || '').trim().toUpperCase() === t);
+            if (/^(BIG|SMALL)$/.test(t) && !childRepeats) outcomes.push(t);
           }
           return JSON.stringify({text: bodyText.slice(0,20000), outcomes: outcomes.slice(-10)});
         })()"""
