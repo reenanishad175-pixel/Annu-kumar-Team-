@@ -259,15 +259,21 @@ class MainActivity : Activity() {
             1 -> (seed * 7 + 1) % 10
             else -> (seed + 5) % 10
         }
-        val side = if (digit % 2 == 0) "Even" else "Odd"
+        val side = if (digit >= 5) "BIG" else "SMALL"
         val entry = "Period " + period + " • " + timerName + " • Digit " + digit + " • " + side + " • Paper ₹" + stake
         history.add(0, entry)
         while (history.size > 100) history.removeAt(history.lastIndex)
-        predictionView.text = "Paper prediction: " + digit + " (" + side + ")\nPeriod: " + period
+        predictionView.text = "Prediction: " + side + "\nPeriod: " + period
         renderHistory()
         if (telegramEnabled.isChecked) {
-            val strategyName = arrayOf("Frequency", "Trend", "Conservative")[strategy]
-            val message = "📊 ANNU KUMAR TEAM\nGame: WinGo\nTimer: $timerName\nPeriod: $period\nStrategy: $strategyName\nPrediction: $digit ($side)\nPaper stake reference: ₹$stake\nNote: Prediction only; no bet was submitted."
+            val gameName = "WinGo"
+            val timerLabel = when (timerName.uppercase()) {
+                "30S" -> "30 सेकंड"
+                "1M" -> "1 मिनट"
+                "3M" -> "3 मिनट"
+                else -> timerName
+            }
+            val message = "Game: $gameName\nTimer: $timerLabel\nPeriod: $period\nPrediction: $side"
             sendTelegramMessage(message)
         }
         status.text = "Prediction recorded. Telegram alert queued if enabled. No wager was submitted."
