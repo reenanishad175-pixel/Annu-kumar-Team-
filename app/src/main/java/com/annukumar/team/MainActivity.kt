@@ -88,8 +88,8 @@ class MainActivity : Activity() {
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(body)
         body.addView(text("ANNU KUMAR TEAM", 24f))
-        body.addView(text("WinGo companion • Paper tracker"))
-        body.addView(text("Prediction और paper history; कोई वास्तविक wager submit नहीं होता।", 12f))
+        body.addView(text("WinGo companion • Dashboard + demo tracker"))
+        body.addView(text("Dashboard, Telegram alerts और demo tracking. कोई वास्तविक wager submit नहीं होता।", 12f))
         account = text("Firebase account: checking…")
         body.addView(account)
         phone = EditText(this).apply { hint = "Phone number with country code, e.g. +91"; inputType = 3 }
@@ -253,30 +253,16 @@ class MainActivity : Activity() {
     }
 
     private fun addPaperPrediction(period: String) {
-        val seed = kotlin.math.abs(period.takeLast(4).toIntOrNull() ?: period.hashCode())
-        val digit = when (strategy) {
-            0 -> (seed + 3) % 10
-            1 -> (seed * 7 + 1) % 10
-            else -> (seed + 5) % 10
-        }
-        val side = if (digit >= 5) "BIG" else "SMALL"
-        val entry = "Period " + period + " • " + timerName + " • Digit " + digit + " • " + side + " • Paper ₹" + stake
+        // Do not manufacture a prediction from the period number. The current page
+        // reader has not yet been validated against BDG WIN's actual result history.
+        // Keep the period visible locally, but wait for verified BIG/SMALL outcomes
+        // before generating a signal or publishing anything to Telegram.
+        val entry = "Period " + period + " • " + timerName + " • Awaiting verified result history"
         history.add(0, entry)
         while (history.size > 100) history.removeAt(history.lastIndex)
-        predictionView.text = "Prediction: " + side + "\nPeriod: " + period
+        predictionView.text = "Prediction: WAITING FOR VERIFIED RESULTS\\nPeriod: " + period
         renderHistory()
-        if (telegramEnabled.isChecked) {
-            val gameName = "WinGo"
-            val timerLabel = when (timerName.uppercase()) {
-                "30S" -> "30 सेकंड"
-                "1M" -> "1 मिनट"
-                "3M" -> "3 मिनट"
-                else -> timerName
-            }
-            val message = "Game: $gameName\nTimer: $timerLabel\nPeriod: $period\nPrediction: $side"
-            sendTelegramMessage(message)
-        }
-        status.text = "Prediction recorded. Telegram alert queued if enabled. No wager was submitted."
+        status.text = "Period detected. Prediction and Telegram signal are paused until actual BIG/SMALL result history can be verified."
     }
 
     private fun saveTelegramSettings() {
