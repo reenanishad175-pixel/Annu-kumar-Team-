@@ -288,7 +288,7 @@ class MainActivity : Activity() {
         } else {
             "Game: WinGo\nTimer: $timerName\nPeriod: $period\n$signal"
         }
-        predictionView.text = if (signal == null) "BET SKIP\\n${summary.reason}" else
+        predictionView.text = if (signal == null) "BET SKIP\n${summary.reason}" else
             "DEMO OBSERVATION: $signal\nLevel: $level • Period: $period\n${summary.reason}"
         history.add(0, "BIG: ${summary.big} | SMALL: ${summary.small} | ${message.replace("\n", " • ")}")
         while (history.size > 100) history.removeAt(history.lastIndex)
