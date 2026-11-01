@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
 import android.net.Uri
 import android.view.Gravity
-import android.view.View
 import android.widget.*
 import android.text.InputType
 import com.google.firebase.FirebaseApp
@@ -154,12 +153,14 @@ class MainActivity : Activity() {
             textSize = 16f
             setTextColor(Color.BLACK)
             setHintTextColor(Color.GRAY)
+
             inputType = if (password) {
                 InputType.TYPE_CLASS_TEXT or
                     InputType.TYPE_TEXT_VARIATION_PASSWORD
             } else {
                 InputType.TYPE_CLASS_PHONE
             }
+
             setSingleLine(true)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = rounded(Color.WHITE, 12)
@@ -246,8 +247,11 @@ class MainActivity : Activity() {
             val pass = password.text.toString()
 
             when {
-                id == null -> message("सही मोबाइल नंबर डालें")
-                pass.isBlank() -> message("पासवर्ड डालें")
+                id == null ->
+                    message("सही मोबाइल नंबर डालें")
+
+                pass.isBlank() ->
+                    message("पासवर्ड डालें")
 
                 else -> auth.signInWithEmailAndPassword(id, pass)
                     .addOnSuccessListener {
@@ -755,5 +759,4 @@ class MainActivity : Activity() {
         addBrand()
         heading("पासवर्ड बदलें")
 
-        val oldPassword = addInput(
-     
+        val oldPassword
