@@ -67,6 +67,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
+        restoreTrackerState()
         setContentView(makeUi())
         updateAccount()
         web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!)
@@ -166,7 +167,7 @@ class MainActivity : Activity() {
         startButton = btn("START PAPER TRACKER") { toggleTracker() }
         body.addView(startButton)
         body.addView(btn("Read website now") { readPage() })
-        body.addView(btn("Clear / reset demo session") { history.clear(); lastPeriod = ""; sessionWins = 0; level = 1; consecutiveLosses = 0; sessionEnded = false; renderHistory(); predictionView.text = "Demo session reset." })
+        body.addView(btn("Clear / reset demo session") { history.clear(); lastPeriod = ""; sessionWins = 0; level = 1; consecutiveLosses = 0; sessionEnded = false; persistTrackerState(); renderHistory(); predictionView.text = "Demo session reset." })
         body.addView(text("PAPER HISTORY", 18f))
         historyView = text("No paper entries yet.")
         body.addView(historyView)
@@ -301,7 +302,9 @@ class MainActivity : Activity() {
             if (sessionWins >= 5) {
                 sessionEnded = true
                 status.text = "Demo session complete: 5 recorded wins."
-                if (telegramEnabled.isChecked) sendTelegramMessage("WinGo demo session ended: 5 recorded WINs. Thank you.")
+                if (telegramEnabled.isChecked) {
+                    sendTelegramMessage("WinGo demo session ended: 5 recorded WINs. Thank you.\nJoin our team: https://bdgwin98.com/#/register?invitationCode=5152785394")
+                }
             } else {
                 status.text = "Demo WIN recorded. Total: $sessionWins/5. Level reset to 1."
                 if (telegramEnabled.isChecked) sendTelegramMessage("WIN")
@@ -320,7 +323,26 @@ class MainActivity : Activity() {
             }
         }
         predictionView.text = "Session WIN: $sessionWins/5 • Level: $level • Consecutive LOSS: $consecutiveLosses/8"
+        persistTrackerState()
         renderHistory()
+    }
+
+    private fun restoreTrackerState() {
+        sessionWins = prefs.getInt("session_wins", 0)
+        level = prefs.getInt("session_level", 1).coerceIn(1, 9)
+        consecutiveLosses = prefs.getInt("consecutive_losses", 0).coerceIn(0, 8)
+        sessionEnded = prefs.getBoolean("session_ended", false)
+        lastPeriod = prefs.getString("last_period", "") ?: ""
+    }
+
+    private fun persistTrackerState() {
+        prefs.edit()
+            .putInt("session_wins", sessionWins)
+            .putInt("session_level", level)
+            .putInt("consecutive_losses", consecutiveLosses)
+            .putBoolean("session_ended", sessionEnded)
+            .putString("last_period", lastPeriod)
+            .apply()
     }
 
     private fun saveTelegramSettings() {
