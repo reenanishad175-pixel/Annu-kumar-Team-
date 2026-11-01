@@ -234,25 +234,53 @@ class MainActivity : Activity() {
 
     private fun readPage() {
         if (!::web.isInitialized) return
-        web.evaluateJavascript("(function(){return JSON.stringify({text:(document.body?document.body.innerText:'').slice(0,15000)});})()") { raw ->
+        // Return structured visible text and only explicitly labelled result chips.
+        // JSONArray safely decodes WebView's quoted/escaped JavaScript return value.
+        val script = """(function(){
+          const visible = e => !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));
+          const bodyText = document.body ? document.body.innerText : '';
+          const nodes = Array.from(document.querySelectorAll(
+            '[aria-label],[title],[data-result],.history *,.result *,.record *,[class*=history i],[class*=result i]'
+          )).filter(visible);
+          const outcomes = [];
+          for (const e of nodes) {
+            const t = ((e.getAttribute('data-result') || e.getAttribute('aria-label') ||
+              e.getAttribute('title') || e.innerText || e.textContent || '').trim().toUpperCase();
+            if (/^(BIG|SMALL)$/.test(t) && !outcomes.includes(t)) outcomes.push(t);
+          }
+          return JSON.stringify({text: bodyText.slice(0,20000), outcomes: outcomes.slice(-10)});
+        })()"""
+        web.evaluateJavascript(script) { raw ->
             try {
-                val decoded = JSONObject(raw?.trim('"')?.replace("\\\\\"", "\"") ?: "{}")
-                inspectText(decoded.optString("text"))
+                val decoded = JSONArray("[" + (raw ?: "{}") + "]").getJSONObject(0)
+                val outcomes = mutableListOf<String>()
+                val array = decoded.optJSONArray("outcomes")
+                if (array != null) for (i in 0 until array.length()) {
+                    val value = array.optString(i).uppercase()
+                    if (value == "BIG" || value == "SMALL") outcomes.add(value)
+                }
+                inspectText(decoded.optString("text"), outcomes)
             } catch (_: Exception) {
-                status.text = "Could not read visible website text."
+                status.text = "BDG page text could not be decoded. Reload the game page and try again."
             }
         }
     }
 
-    private fun inspectText(rawText: String) {
-        val content = rawText.replace(Regex("\\s+"), " ")
-        val period = Regex("\\b\\d{8,20}\\b").findAll(content).lastOrNull()?.value ?: ""
-        timerName = when {
-            Regex("30\\s*(s|sec|seconds)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "30S"
-            Regex("1\\s*(m|min|minute)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "1M"
-            Regex("3\\s*(m|min|minute)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "3M"
-            else -> timerName
+    private fun inspectText(rawText: String, labelledOutcomes: List<String> = emptyList()) {
+        val content = rawText.replace(Regex("\\s+"), " ").trim()
+        // A long number is a period only beside an explicit period/issue/round label.
+        val periodMatch = Regex(
+            "(?:period|issue\\s*(?:no\\.?|number)?|round\\s*(?:no\\.?|number)?|期号)\\s*[:#-]?\\s*(\\d{6,24})",
+            RegexOption.IGNORE_CASE
+        ).find(content)
+        val period = periodMatch?.groupValues?.getOrNull(1).orEmpty()
+        val detectedTimer = when {
+            Regex("(?:30\\s*(?:s|sec|seconds)|\\b30秒)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "30S"
+            Regex("(?:1\\s*(?:m|min|minute)|\\b1分钟)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "1M"
+            Regex("(?:3\\s*(?:m|min|minute)|\\b3分钟)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "3M"
+            else -> null
         }
+        if (detectedTimer != null) timerName = detectedTimer
         timerView.text = "Website timer: " + timerName
         if (period.isNotEmpty()) {
             periodView.text = "Period: " + period
@@ -262,7 +290,15 @@ class MainActivity : Activity() {
                 addPaperPrediction(period)
             }
         } else {
-            status.text = "Website is open. Period label was not detected in readable page text."
+            periodView.text = "Period: Not detected (label not found)"
+            status.text = "BDG page is readable, but a labelled period number was not found. Select WinGo and reload."
+        }
+        if (labelledOutcomes.size >= 3) {
+            val recent = labelledOutcomes.takeLast(10)
+            resultsInput.setText(recent.joinToString(" "))
+            status.text = "BDG displayed BIG/SMALL labels detected (" + recent.size + "). Verify these against the visible result history before paper analysis."
+        } else if (labelledOutcomes.isNotEmpty()) {
+            status.text = "BDG showed only " + labelledOutcomes.size + " labelled result(s); at least 3 are needed. No signal generated."
         }
     }
 
