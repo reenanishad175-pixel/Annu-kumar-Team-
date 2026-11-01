@@ -37,6 +37,11 @@ class MainActivity : Activity() {
     private lateinit var timerView: TextView
     private lateinit var predictionView: TextView
     private lateinit var historyView: TextView
+    private lateinit var resultsInput: EditText
+    private var sessionWins = 0
+    private var level = 1
+    private var consecutiveLosses = 0
+    private var sessionEnded = false
     private lateinit var startButton: Button
     private lateinit var phone: EditText
     private lateinit var otp: EditText
@@ -121,24 +126,20 @@ class MainActivity : Activity() {
         periodView = text("Period: Not detected")
         body.addView(timerView)
         body.addView(periodView)
-        body.addView(text("Prediction strategy"))
-        body.addView(Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
-                arrayOf("Strategy 1 • Frequency", "Strategy 2 • Trend", "Strategy 3 • Conservative"))
-            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    strategy = position
-                }
-            }
-        })
-        val stakeInput = EditText(this).apply { hint = "Paper stake (₹)"; setText("10"); inputType = 2 }
-        body.addView(stakeInput)
-        body.addView(btn("Set paper stake") {
-            stake = (stakeInput.text.toString().toIntOrNull() ?: 10).coerceIn(1, 100000)
-            status.text = "Paper stake set to ₹" + stake
-        })
-        predictionView = text("Next paper prediction: —", 16f)
+        body.addView(text("10-PERIOD PAPER PATTERN CHECK", 18f))
+        body.addView(text("पिछले परिणाम पुराने से नए क्रम में लिखें; उदाहरण: BIG SMALL BIG SMALL. अधिकतम आखिरी 10 परिणाम लिए जाएँगे।", 12f))
+        resultsInput = EditText(this).apply {
+            hint = "BIG, SMALL, BIG, SMALL..."
+            setSingleLine(false)
+            minLines = 2
+        }
+        body.addView(resultsInput)
+        body.addView(btn("ANALYZE PAPER PATTERN") { analyzePaperPattern() })
+        body.addView(text("SESSION TRACKER", 18f))
+        body.addView(text("WIN मिलने पर Level 1 से शुरू होगा। 8 लगातार LOSS या 5 कुल WIN पर session रुकता है।"))
+        body.addView(btn("Mark demo result: WIN") { recordDemoResult(true) })
+        body.addView(btn("Mark demo result: LOSS") { recordDemoResult(false) })
+        predictionView = text("Demo observation: waiting for verified result history", 16f)
         body.addView(predictionView)
         body.addView(text("TELEGRAM PREDICTION ALERTS", 18f))
         body.addView(text("Bot token और Chat ID डालें। ये केवल इस फोन की private app preferences में सेव होंगे.", 12f))
@@ -165,7 +166,7 @@ class MainActivity : Activity() {
         startButton = btn("START PAPER TRACKER") { toggleTracker() }
         body.addView(startButton)
         body.addView(btn("Read website now") { readPage() })
-        body.addView(btn("Clear paper history") { history.clear(); lastPeriod = ""; renderHistory() })
+        body.addView(btn("Clear / reset demo session") { history.clear(); lastPeriod = ""; sessionWins = 0; level = 1; consecutiveLosses = 0; sessionEnded = false; renderHistory(); predictionView.text = "Demo session reset." })
         body.addView(text("PAPER HISTORY", 18f))
         historyView = text("No paper entries yet.")
         body.addView(historyView)
@@ -263,6 +264,63 @@ class MainActivity : Activity() {
         predictionView.text = "Prediction: WAITING FOR VERIFIED RESULTS\\nPeriod: " + period
         renderHistory()
         status.text = "Period detected. Prediction and Telegram signal are paused until actual BIG/SMALL result history can be verified."
+    }
+
+    private fun analyzePaperPattern() {
+        if (sessionEnded) {
+            status.text = "Session ended. Start a new session after reviewing the results."
+            return
+        }
+        val summary = PatternAnalyzer.analyze(resultsInput.text.toString())
+        val period = if (lastPeriod.isNotBlank()) lastPeriod else "Not detected"
+        val signal = summary.signal
+        val message = if (signal == null) {
+            "Game: WinGo\\nTimer: $timerName\\nPeriod: $period\\nBET SKIP"
+        } else {
+            "Game: WinGo\\nTimer: $timerName\\nPeriod: $period\\nLevel: $level\\nPrediction: $signal"
+        }
+        predictionView.text = if (signal == null) "BET SKIP\\n${summary.reason}" else
+            "DEMO OBSERVATION: $signal\\nLevel: $level • Period: $period\\n${summary.reason}"
+        history.add(0, "BIG: ${summary.big} | SMALL: ${summary.small} | ${message.replace("\\n", " • ")}")
+        while (history.size > 100) history.removeAt(history.lastIndex)
+        renderHistory()
+        status.text = "Paper analysis only. Recent results do not predict or guarantee the next outcome."
+        if (telegramEnabled.isChecked) sendTelegramMessage(message)
+    }
+
+    private fun recordDemoResult(won: Boolean) {
+        if (sessionEnded) {
+            status.text = "Session already ended. Clear history to reset the local demo tracker."
+            return
+        }
+        if (won) {
+            sessionWins++
+            consecutiveLosses = 0
+            level = 1
+            history.add(0, "DEMO RESULT: WIN • Session wins $sessionWins/5 • Level reset to 1")
+            if (sessionWins >= 5) {
+                sessionEnded = true
+                status.text = "Demo session complete: 5 recorded wins."
+                if (telegramEnabled.isChecked) sendTelegramMessage("WinGo demo session ended: 5 recorded WINs. Thank you.")
+            } else {
+                status.text = "Demo WIN recorded. Total: $sessionWins/5. Level reset to 1."
+                if (telegramEnabled.isChecked) sendTelegramMessage("WIN")
+            }
+        } else {
+            consecutiveLosses++
+            level++
+            history.add(0, "DEMO RESULT: LOSS • Level $level • Consecutive losses $consecutiveLosses/8")
+            if (consecutiveLosses >= 8 || level > 8) {
+                sessionEnded = true
+                status.text = "Demo session cancelled after 8 consecutive losses."
+                if (telegramEnabled.isChecked) sendTelegramMessage("आज का demo session यहीं रोक रहे हैं। लगातार 8 परिणाम अनुकूल नहीं रहे। कृपया नुकसान की भरपाई के लिए जल्दबाज़ी न करें।")
+            } else {
+                status.text = "Demo LOSS recorded. Next level: $level."
+                if (telegramEnabled.isChecked) sendTelegramMessage("LOSS")
+            }
+        }
+        predictionView.text = "Session WIN: $sessionWins/5 • Level: $level • Consecutive LOSS: $consecutiveLosses/8"
+        renderHistory()
     }
 
     private fun saveTelegramSettings() {
