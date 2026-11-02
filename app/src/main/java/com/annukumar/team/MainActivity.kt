@@ -401,7 +401,7 @@ class MainActivity : Activity() {
             if (!seen[period]) { seen[period] = true; out.push({period:period, size:size}); }
           }
           try { scan(document); } catch (_) {}
-          return JSON.stringify(out.slice(0,250));
+          return JSON.stringify(out.slice(0,10));
         })()"""
     }
 }
