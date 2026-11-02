@@ -372,13 +372,13 @@ class MainActivity : Activity() {
           }
           var bodyText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
           var route = (location.href || '').toLowerCase();
-          if (!/bingo/.test(route) && !/\bbingo\b/.test(bodyText)) return JSON.stringify('WAIT_BINGO');
+          if (!/bingo|win[\s_-]*go/.test(route) && !/\bbingo\b|\bwin\s*go\b/.test(bodyText)) return JSON.stringify('WAIT_BINGO');
 
           var modes = [
-            {name:'Bingo 30 Seconds', re:/^(?:bingo\s*)?30\s*(?:seconds?|secs?|sec|s)$/i},
-            {name:'Bingo 1 Minute', re:/^(?:bingo\s*)?1\s*(?:minutes?|mins?|min|m)$/i},
-            {name:'Bingo 3 Minutes', re:/^(?:bingo\s*)?3\s*(?:minutes?|mins?|min|m)$/i},
-            {name:'Bingo 5 Minutes', re:/^(?:bingo\s*)?5\s*(?:minutes?|mins?|min|m)$/i}
+            {name:'Win Go / Bingo 30 Seconds', re:/^(?:(?:win\s*go|bingo)\s*)?30\s*(?:seconds?|secs?|sec|s)$/i},
+            {name:'Win Go / Bingo 1 Minute', re:/^(?:(?:win\s*go|bingo)\s*)?1\s*(?:minutes?|mins?|min|m)$/i},
+            {name:'Win Go / Bingo 3 Minutes', re:/^(?:(?:win\s*go|bingo)\s*)?3\s*(?:minutes?|mins?|min|m)$/i},
+            {name:'Win Go / Bingo 5 Minutes', re:/^(?:(?:win\s*go|bingo)\s*)?5\s*(?:minutes?|mins?|min|m)$/i}
           ];
           function modeFor(el) {
             var t = textOf(el).replace(/\s+/g, ' ').trim();
@@ -409,7 +409,7 @@ class MainActivity : Activity() {
 
           function hasHistoryRows(root) {
             if (!root || !root.querySelectorAll) return false;
-            var nodes = root.querySelectorAll('tr,[role="row"],article,[class*="record"],[class*="item"]');
+            var nodes = root.querySelectorAll('tr,[role="row"],article,li,[class*="record"],[class*="item"],[class*="row"]');
             for (var i=0; i<nodes.length; i++) {
               var el = nodes[i];
               if (!visible(el)) continue;
@@ -460,7 +460,7 @@ class MainActivity : Activity() {
           function scanRoot(root) {
             if (!root || roots.indexOf(root) >= 0 || !root.querySelectorAll) return;
             roots.push(root);
-            root.querySelectorAll('tr,[role="row"],article,[class*="record"],[class*="item"]').forEach(addRow);
+            root.querySelectorAll('tr,[role="row"],article,li,[class*="record"],[class*="item"],[class*="row"]').forEach(addRow);
             root.querySelectorAll('*').forEach(function(el) {
               if (el.shadowRoot) scanRoot(el.shadowRoot);
             });
