@@ -37,10 +37,12 @@ object SessionScheduler {
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
         }
         val id = hour * 10 + if (kind == "READY") 1 else if (kind == "WAIT") 3 else 2
+        val dateKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(at.time)
         val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
-            action = "com.annukumar.team.$kind.$hour"
+            action = "com.annukumar.team.$kind.$hour.$dateKey"
             putExtra("kind", kind)
             putExtra("hour", hour)
+            putExtra("session_date", dateKey)
         }
         val pending = PendingIntent.getBroadcast(
             context, id, intent,
@@ -54,21 +56,27 @@ object SessionScheduler {
         schedule(context, hour, if (kind == "READY") 0 else 0, kind)
     }
 
-    fun scheduleWaitIn15Minutes(context: Context, hour: Int) {
+    fun scheduleWaitIn15Minutes(context: Context, hour: Int, sessionDate: String) {
+        if (hasFirstSignal(context, hour, sessionDate)) return
         val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
-            action = "com.annukumar.team.WAIT." + hour
+            action = "com.annukumar.team.WAIT.$hour.$sessionDate"
             putExtra("kind", "WAIT")
             putExtra("hour", hour)
+            putExtra("session_date", sessionDate)
         }
         val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 15L * 60L * 1000L, pending)
     }
 
+    private fun hasFirstSignal(context: Context, hour: Int, date: String): Boolean =
+        context.getSharedPreferences("paper", Context.MODE_PRIVATE)
+            .getBoolean("session_first_signal_" + date + "_" + hour, false)
+
     fun markFirstSignalSent(context: Context, hour: Int) {
         val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
-        context.getSharedPreferences("paper", Context.MODE_PRIVATE).edit().putBoolean("session_first_signal_" + date + "_" + hour, true).apply()
-        val intent = Intent(context, SessionAlarmReceiver::class.java).apply { action = "com.annukumar.team.WAIT." + hour; putExtra("kind", "WAIT"); putExtra("hour", hour) }
+        context.getSharedPreferences("paper", Context.MODE_PRIVATE).edit().putBoolean("session_first_signal_" + date + "_" + hour, true).commit()
+        val intent = Intent(context, SessionAlarmReceiver::class.java).apply { action = "com.annukumar.team.WAIT." + hour + "." + date; putExtra("kind", "WAIT"); putExtra("hour", hour); putExtra("session_date", date) }
         val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
     }
@@ -137,22 +145,25 @@ class SessionAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val kind = intent.getStringExtra("kind") ?: return
         val hour = intent.getIntExtra("hour", -1)
+        if (hour !in intArrayOf(10, 15, 18, 21)) return
+        val date = intent.getStringExtra("session_date") ?: java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        if (date != today) return
+        if (kind == "WAIT" && context.getSharedPreferences("paper", Context.MODE_PRIVATE)
+                .getBoolean("session_first_signal_" + date + "_" + hour, false)) return
         val time = String.format("%02d:00", hour)
-        val title: String
-        val message: String
-        if (kind == "READY") {
-            title = "ANNU KUMAR TEAM"
-            message = "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
+        val title = if (kind == "READY") "ANNU KUMAR TEAM" else "SESSION UPDATE"
+        val message = if (kind == "READY") {
+            "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
         } else {
-            title = "SESSION UPDATE"
-            message = "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
+            "SESSION UPDATE\\n\\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
         }
         SessionScheduler.show(context, title, message)
         SessionScheduler.sendTelegram(context, message)
-        if (hour >= 0) { if (kind == "READY") SessionScheduler.rescheduleOne(context, hour, "READY") else SessionScheduler.scheduleWaitIn15Minutes(context, hour) }
+        if (kind == "READY") SessionScheduler.rescheduleOne(context, hour, "READY")
+        else SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
     }
 }
-
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         SessionScheduler.scheduleAll(context)
