@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private var pageReady = false
     private val seenPeriods = LinkedHashSet<String>()
     private val observedRows = mutableListOf<Pair<String, String>>()
+    private var lastTelegramPredictionKey: String? = null
 
     private val navy = Color.rgb(9, 15, 29)
     private val panel = Color.rgb(20, 30, 49)
