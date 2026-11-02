@@ -2,8 +2,13 @@ package com.annukumar.team
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
@@ -331,6 +336,27 @@ class MainActivity : Activity() {
             setOnClickListener { sendTelegram("Annu Kumar Team: Telegram test successful.") }
         }
         content.addView(testTelegram, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) })
+        val startMonitor = Button(this).apply {
+            text = "START BACKGROUND MONITORING"
+            isAllCaps = false
+            setOnClickListener {
+                if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 901)
+                } else {
+                    prefs.edit().putBoolean("bg_stopped", false).apply()
+                    BackgroundMonitorService.start(this@MainActivity)
+                    Toast.makeText(this@MainActivity, "Background monitoring started", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        content.addView(startMonitor, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(12) })
+        val stopMonitor = Button(this).apply {
+            text = "STOP BACKGROUND MONITORING"
+            isAllCaps = false
+            setOnClickListener { stopService(Intent(this@MainActivity, BackgroundMonitorService::class.java)); Toast.makeText(this@MainActivity, "Monitoring stopped", Toast.LENGTH_SHORT).show() }
+        }
+        content.addView(stopMonitor, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
+
         content.addView(label("Token और Chat ID इसी डिवाइस में सेव होंगे। इन्हें किसी के साथ साझा न करें।", 12f).apply {
             setTextColor(muted)
             setPadding(0, dp(14), 0, 0)
@@ -360,10 +386,11 @@ class MainActivity : Activity() {
         status.text = "Telegram सेटिंग्स"
     }
 
-    private fun saveSettings() {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {\n        super.onRequestPermissionsResult(requestCode, permissions, grantResults)\n        if (requestCode == 901 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) BackgroundMonitorService.start(this)\n    }\n\n    private fun saveSettings() {
         prefs.edit()
             .putString("telegram_bot_token", tokenField.text.toString().trim())
             .putString("telegram_chat_id", chatField.text.toString().trim())
+            .putBoolean("telegram_enabled", true)
             .apply()
         status.text = "Telegram सेटिंग्स इसी डिवाइस में सेव हो गईं"
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
