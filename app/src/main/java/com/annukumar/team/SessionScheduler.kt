@@ -54,6 +54,25 @@ object SessionScheduler {
         schedule(context, hour, if (kind == "READY") 0 else 0, kind)
     }
 
+    fun scheduleWaitIn15Minutes(context: Context, hour: Int) {
+        val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
+            action = "com.annukumar.team.WAIT." + hour
+            putExtra("kind", "WAIT")
+            putExtra("hour", hour)
+        }
+        val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 15L * 60L * 1000L, pending)
+    }
+
+    fun markFirstSignalSent(context: Context, hour: Int) {
+        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        context.getSharedPreferences("paper", Context.MODE_PRIVATE).edit().putBoolean("session_first_signal_" + date + "_" + hour, true).apply()
+        val intent = Intent(context, SessionAlarmReceiver::class.java).apply { action = "com.annukumar.team.WAIT." + hour; putExtra("kind", "WAIT"); putExtra("hour", hour) }
+        val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+    }
+
     fun show(context: Context, title: String, message: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
@@ -130,7 +149,7 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         }
         SessionScheduler.show(context, title, message)
         SessionScheduler.sendTelegram(context, message)
-        if (hour >= 0) SessionScheduler.rescheduleOne(context, hour, if (kind == "READY") "READY" else "WAIT")
+        if (hour >= 0) { if (kind == "READY") SessionScheduler.rescheduleOne(context, hour, "READY") else SessionScheduler.scheduleWaitIn15Minutes(context, hour) }
     }
 }
 
