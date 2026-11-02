@@ -239,7 +239,8 @@ class MainActivity : Activity() {
             try { java.math.BigInteger(it.first) } catch (_: Exception) { java.math.BigInteger.ZERO }
         }
         selectedModeName = mode
-        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${orderedRows.size}/10"\n        refreshTelegramDiagnostic()
+        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${orderedRows.size}/10"
+        refreshTelegramDiagnostic()
         if (orderedRows.isEmpty()) {
             predictionView.text = "अनुमान: पर्याप्त डेटा नहीं"
             trendView.text = "ट्रेंड: —"
