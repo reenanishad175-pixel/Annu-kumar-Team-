@@ -256,32 +256,38 @@ class MainActivity : Activity() {
     }
 
 
-    // Display only results actually found on the first visible Bingo history page.
+    // Read history only after the visible page has reached the Bingo screen.
     private fun consumeHistory(raw: String) {
         try {
             val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
-            val rows = JSONArray(decoded)
+            if (decoded == "WAIT_BINGO") {
+                status.text = "पहले BDG में Lottery पर जाएँ, फिर Bingo खोलें • वहीं History पढ़ी जाएगी"
+                return
+            }
+            val payload = JSONObject(decoded)
+            if (!payload.optBoolean("bingo", false)) {
+                status.text = "Bingo स्क्रीन खुलने का इंतज़ार…"
+                return
+            }
+            val rows = payload.optJSONArray("rows") ?: JSONArray()
             val pageRows = mutableListOf<Pair<String, String>>()
             for (i in 0 until rows.length()) {
                 val row = rows.getJSONObject(i)
                 val period = row.optString("period")
                 val size = row.optString("size").uppercase()
                 if (period.matches(Regex("[0-9]{8,24}")) && (size == "BIG" || size == "SMALL") &&
-                    pageRows.none { it.first == period }) {
-                    pageRows.add(period to size)
-                }
+                    pageRows.none { it.first == period }) pageRows.add(period to size)
             }
             if (pageRows.isEmpty()) {
-                status.text = "BDG खुला है • Bingo History के पहले पेज पर पढ़ने योग्य रिजल्ट नहीं मिला"
+                status.text = "Bingo खुला है • पहले पेज की History दिख रही है, लेकिन Period/Result पढ़ा नहीं जा सका"
                 return
             }
             observedRows.clear()
             observedRows.addAll(pageRows.take(10))
             val latest = observedRows.first()
-            status.text = "पहले पेज के रिजल्ट: " + observedRows.size + "/10 • नया Period: " +
-                latest.first + " • " + latest.second
+            status.text = "Bingo History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
         } catch (_: Exception) {
-            status.text = "History reader: स्क्रीन का डेटा अभी पढ़ा नहीं जा सका"
+            status.text = "Bingo History: स्क्रीन का डेटा अभी पढ़ा नहीं जा सका"
         }
     }
 
@@ -350,7 +356,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val HISTORY_READER_JS = """(function () {
-          var found = [], seen = Object.create(null), docs = [];
+          var found = [], seen = Object.create(null), docs = [];\n          var visibleText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();\n          var route = (location.href || '').toLowerCase();\n          var bingoVisible = /bingo/.test(route) || /bingo/.test(visibleText);\n          if (!bingoVisible) return JSON.stringify('WAIT_BINGO');
           function visible(el) {
             if (!el || !el.getClientRects || !el.getClientRects().length) return false;
             var s = window.getComputedStyle(el);
@@ -419,7 +425,7 @@ class MainActivity : Activity() {
           }
           try { scanRoot(document); } catch (_) {}
           // DOM order is the visible page order. Do not paginate or fetch hidden pages.
-          return JSON.stringify(found.slice(0, 10));
+          return JSON.stringify({bingo:true, rows:found.slice(0, 10)});
         })()"""
     }
 }
