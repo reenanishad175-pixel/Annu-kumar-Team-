@@ -11,6 +11,12 @@ import android.webkit.*
 import android.widget.*
 import android.content.res.ColorStateList
 import android.view.Gravity
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import kotlin.concurrent.thread
 
 /**
  * Minimal BDG WIN web login shell.
@@ -28,6 +34,8 @@ class MainActivity : Activity() {
     private lateinit var loginTab: Button
     private lateinit var settingsTab: Button
     private var pageReady = false
+    private val seenPeriods = LinkedHashSet<String>()
+    private val observedRows = mutableListOf<Pair<String, String>>()
 
     private val navy = Color.rgb(9, 15, 29)
     private val panel = Color.rgb(20, 30, 49)
@@ -39,12 +47,8 @@ class MainActivity : Activity() {
     private val pageMonitor = object : Runnable {
         override fun run() {
             if (::web.isInitialized && pageReady) {
-                web.evaluateJavascript(
-                    "(function(){return JSON.stringify({title:document.title,ready:document.readyState,url:location.href});})()"
-                ) { raw ->
-                    if (!isFinishing && raw != null && raw != "null") {
-                        status.text = if (pageReady) "BDG पेज खुला है • वेबसाइट की स्थिति अपने-आप जाँची जा रही है" else "BDG पेज लोड हो रहा है…"
-                    }
+                web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
             handler.postDelayed(this, 6000)
@@ -207,6 +211,12 @@ class MainActivity : Activity() {
         content.addView(save, LinearLayout.LayoutParams(-1, dp(50)).apply {
             topMargin = dp(18)
         })
+        val testTelegram = Button(this).apply {
+            text = "SEND TEST MESSAGE"
+            isAllCaps = false
+            setOnClickListener { sendTelegram("Annu Kumar Team: Telegram test successful.") }
+        }
+        content.addView(testTelegram, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) })
         content.addView(label("Token और Chat ID इसी डिवाइस में सेव होंगे। इन्हें किसी के साथ साझा न करें।", 12f).apply {
             setTextColor(muted)
             setPadding(0, dp(14), 0, 0)
@@ -245,6 +255,84 @@ class MainActivity : Activity() {
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
     }
 
+
+    // Read-only extraction from visible Game History rows; never interacts with wager controls.
+    private fun consumeHistory(raw: String) {
+        try {
+            val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
+            val rows = JSONArray(decoded)
+            var latestPeriod = ""
+            var latestSize = ""
+            var added = 0
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                val period = row.optString("period")
+                val size = row.optString("size").uppercase()
+                if (period.matches(Regex("[0-9]{12,24}")) && (size == "BIG" || size == "SMALL")) {
+                    latestPeriod = period
+                    latestSize = size
+                    if (seenPeriods.add(period)) {
+                        observedRows.add(period to size)
+                        added++
+                    }
+                }
+            }
+            while (observedRows.size > 100) observedRows.removeAt(0)
+            if (latestPeriod.isBlank()) {
+                status.text = "BDG खुला है • Game History table अभी नहीं मिली"
+                return
+            }
+            val tail = observedRows.takeLast(10)
+            val big = tail.count { it.second == "BIG" }
+            val small = tail.size - big
+            val signal = if (tail.size < 5) "SKIP (5 results needed)" else when {
+                big >= 7 -> "BIG (low-confidence pattern)"
+                small >= 7 -> "SMALL (low-confidence pattern)"
+                else -> "SKIP (no clear pattern)"
+            }
+            status.text = "History reader: " + observedRows.size + " rows • Latest " + latestPeriod + " " + latestSize + " • Paper signal: " + signal
+            if (added > 0 && signal != "SKIP (no clear pattern)" && tail.size >= 5) {
+                if (prefs.getString("last_alert_period", "") != latestPeriod) {
+                    prefs.edit().putString("last_alert_period", latestPeriod).apply()
+                    sendTelegram("BDG paper observation\nLatest period: " + latestPeriod + "\nLatest result: " + latestSize + "\nPattern: " + signal + "\nNot a reliable prediction; no bet was placed.")
+                }
+            }
+        } catch (_: Exception) {
+            status.text = "History reader: page structure not recognized yet"
+        }
+    }
+
+    private fun sendTelegram(message: String) {
+        val token = prefs.getString("telegram_bot_token", "").orEmpty()
+        val chatId = prefs.getString("telegram_chat_id", "").orEmpty()
+        if (token.isBlank() || chatId.isBlank()) {
+            status.text = "Telegram not sent • Settings में Bot Token और Chat ID भरें"
+            return
+        }
+        thread {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL("https://api.telegram.org/bot" + token + "/sendMessage").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                }
+                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&text=" + URLEncoder.encode(message, "UTF-8")
+                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val response = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val ok = code in 200..299 && JSONObject(response).optBoolean("ok", false)
+                runOnUiThread { status.text = if (ok) "Telegram message sent successfully" else "Telegram failed (HTTP " + code + ") • Token/Chat ID जाँचें" }
+            } catch (e: Exception) {
+                runOnUiThread { status.text = "Telegram error • " + (e.localizedMessage ?: "network error") }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         if (::settingsScreen.isInitialized && settingsScreen.visibility == View.VISIBLE) {
@@ -275,5 +363,28 @@ class MainActivity : Activity() {
             web.destroy()
         }
         super.onDestroy()
+    }
+
+    companion object {
+        private const val HISTORY_READER_JS = """(function() {
+          var out = [];
+          Array.from(document.querySelectorAll('tr')).forEach(function(tr) {
+            var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td) {
+              return (td.innerText || td.textContent || '').trim();
+            });
+            var period = cells.find(function(x) { return /^[0-9]{12,24}$/.test(x); });
+            if (!period) return;
+            var digit = null;
+            var pi = cells.indexOf(period);
+            for (var i = pi + 1; i < cells.length; i++) {
+              if (/^[0-9]$/.test(cells[i])) { digit = parseInt(cells[i], 10); break; }
+            }
+            if (digit === null) return;
+            var size = cells.find(function(x) { return /^(big|small)$/i.test(x); });
+            if (!size) size = digit >= 5 ? 'BIG' : 'SMALL';
+            out.push({period: period, size: size.toUpperCase()});
+          });
+          return JSON.stringify(out);
+        })()"""
     }
 }
