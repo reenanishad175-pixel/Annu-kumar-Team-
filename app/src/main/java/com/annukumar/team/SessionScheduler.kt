@@ -79,12 +79,12 @@ object SessionScheduler {
         manager.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
-    fun sendTelegram(context: Context, message: String) {
+    fun sendTelegram(context: Context, message: String, onComplete: ((Boolean, String) -> Unit)? = null) {
         val prefs = context.getSharedPreferences("paper", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("telegram_enabled", false)) return
+        if (!prefs.getBoolean("telegram_enabled", false)) { onComplete?.invoke(false, "Telegram disabled"); return }
         val token = prefs.getString("telegram_bot_token", "").orEmpty()
         val chatId = prefs.getString("telegram_chat_id", "").orEmpty()
-        if (token.isBlank() || chatId.isBlank()) return
+        if (token.isBlank() || chatId.isBlank()) { onComplete?.invoke(false, "Bot token or Chat ID missing"); return }
         thread(name = "session-telegram") {
             var connection: HttpURLConnection? = null
             try {
@@ -102,11 +102,12 @@ object SessionScheduler {
                 val responseCode = connection.responseCode
                 val response = (if (responseCode in 200..299) connection.inputStream else connection.errorStream)
                     ?.bufferedReader()?.use { it.readText() }.orEmpty()
-                if (responseCode !in 200..299 || !JSONObject(response).optBoolean("ok", false)) {
-                    android.util.Log.w("SessionScheduler", "Telegram alert failed: HTTP " + responseCode)
-                }
+                val ok = responseCode in 200..299 && JSONObject(response).optBoolean("ok", false)
+                if (!ok) android.util.Log.w("SessionScheduler", "Telegram alert failed: HTTP " + responseCode + " " + response)
+                onComplete?.invoke(ok, if (ok) "sent" else "HTTP " + responseCode + ": " + response)
             } catch (error: Exception) {
                 android.util.Log.e("SessionScheduler", "Telegram alert error", error)
+                onComplete?.invoke(false, error.localizedMessage ?: "network error")
             } finally {
                 connection?.disconnect()
             }
