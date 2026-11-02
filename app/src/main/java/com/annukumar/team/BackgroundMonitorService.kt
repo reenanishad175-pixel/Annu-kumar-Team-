@@ -73,7 +73,6 @@ class BackgroundMonitorService : Service() {
             val mode = obj.optString("mode")
             val rows = obj.optJSONArray("rows") ?: run { updateMonitorDiagnostic("Service reader: rows missing"); return }
             if (rows.length() == 0) { updateMonitorDiagnostic("Service reader: history rows empty"); return }
-            // Period number, not screen position, determines the newest completed result.
             val orderedRows = (0 until rows.length()).mapNotNull { i ->
                 rows.optJSONObject(i)?.let { row ->
                     val p = row.optString("period")
@@ -84,9 +83,9 @@ class BackgroundMonitorService : Service() {
                 }
             }.sortedByDescending { it.first }
             if (orderedRows.isEmpty()) { updateMonitorDiagnostic("Service reader: no valid BIG/SMALL periods"); return }
-            val latest = orderedRows.first().second
-            val period = latest.optString("period")
-            val result = latest.optString("size").uppercase(Locale.ROOT)
+
+            val newestPeriod = orderedRows.first().first
+            val newestLabel = newestPeriod.toString()
             val cal = Calendar.getInstance()
             val hour = cal.get(Calendar.HOUR_OF_DAY)
             val sessions = intArrayOf(10,15,18,21)
@@ -95,85 +94,117 @@ class BackgroundMonitorService : Service() {
             val sessionKey = "$date-$activeHour"
             if (prefs.getString("bg_session","") != sessionKey) {
                 prefs.edit().putString("bg_session",sessionKey).putInt("bg_wins",0).putInt("bg_level",1)
-                    .putBoolean("bg_stopped",false)
-                    .putString("bg_pending_period","").putString("bg_pending_pick","")
-                    .putString("bg_last_result_period","").putString("bg_last_outcome","—").apply()
+                    .putBoolean("bg_stopped",false).putString("bg_predictions_json","[]")
+                    .putString("bg_last_result_period","").putString("bg_last_outcome","—").commit()
             }
-            if (prefs.getInt("bg_wins",0) >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }
-            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
 
-            // Resolve only the exact period that was saved as the prediction target.
-            val pendingTarget = prefs.getString("bg_pending_period","").orEmpty()
-            val pendingPick = prefs.getString("bg_pending_pick","").orEmpty()
-            if (pendingTarget.isNotBlank() && pendingPick in listOf("BIG","SMALL")) {
-                var actualForTarget: String? = null
-                for ((_, row) in orderedRows) {
-                    if (row.optString("period") == pendingTarget) {
-                        val size = row.optString("size").uppercase(Locale.ROOT)
-                        if (size == "BIG" || size == "SMALL") actualForTarget = size
-                        break
+            val predictions = org.json.JSONArray(prefs.getString("bg_predictions_json","[]") ?: "[]")
+            val actualByPeriod = orderedRows.associate { it.first.toString() to it.second.optString("size").uppercase(Locale.ROOT) }
+            val resolved = mutableListOf<Triple<java.math.BigInteger, Int, String>>()
+            for (i in 0 until predictions.length()) {
+                val item = predictions.optJSONObject(i) ?: continue
+                val target = item.optString("period")
+                val pick = item.optString("pick")
+                if (item.optString("status") != "RESOLVED" && pick in listOf("BIG","SMALL")) {
+                    val actual = actualByPeriod[target]
+                    if (actual in listOf("BIG","SMALL")) {
+                        val win = pick == actual
+                        item.put("status","RESOLVED").put("actual",actual).put("outcome",if (win) "WIN" else "LOSS")
+                        try { resolved.add(Triple(java.math.BigInteger(target), i, if (win) "WIN" else "LOSS")) } catch (_: Exception) {}
+                    } else if (item.optString("status") == "SENDING" &&
+                        System.currentTimeMillis() - item.optLong("createdAt") > 60000L) {
+                        item.put("status","FAILED")
                     }
                 }
-                if (actualForTarget != null && prefs.getString("bg_last_result_period","") != pendingTarget) {
-                    val win = pendingPick == actualForTarget
-                    val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
-                    val wins = prefs.getInt("bg_wins",0) + if (win) 1 else 0
-                    val nextLevel = if (win) 1 else (currentLevel + 1).coerceAtMost(8)
-                    prefs.edit().putInt("bg_wins",wins).putInt("bg_level",nextLevel)
-                        .putString("bg_last_result_period",pendingTarget)
-                        .putString("bg_last_outcome",if (win) "WIN" else "LOSS")
-                        .putString("bg_pending_period","").putString("bg_pending_pick","").apply()
-                    send(if (win) "✅ RESULT: WIN" else "❌ RESULT: LOSS",
-                        "Prediction: $pendingPick\nActual Result: $actualForTarget\nPeriod: $pendingTarget\nLevel: $currentLevel\n" +
-                        (if (win) "Next Level: 1" else if (currentLevel < 8) "Next Level: $nextLevel" else "Level 8 limit reached") +
-                        "\nSession Wins: $wins/5")
-                    if (wins >= 5 || (!win && currentLevel >= 8)) {
-                        prefs.edit().putBoolean("bg_stopped",true).apply()
-                        send("सेशन समाप्त", if (wins >= 5) "5 WIN पूरे हुए। अगला निर्धारित सेशन आने तक मॉनिटर रुकेगा।" else "Level 8 पर LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
+            }
+            resolved.sortBy { it.first }
+            var wins = prefs.getInt("bg_wins",0)
+            var level = prefs.getInt("bg_level",1).coerceIn(1,8)
+            for ((_, index, outcome) in resolved) {
+                val item = predictions.optJSONObject(index) ?: continue
+                val target = item.optString("period")
+                val pick = item.optString("pick")
+                val actual = item.optString("actual")
+                val resolvedLevel = item.optInt("level",level).coerceIn(1,8)
+                if (outcome == "WIN") { wins++; level = 1 } else { level = (resolvedLevel + 1).coerceAtMost(8) }
+                prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
+                send(if (outcome == "WIN") "✅ RESULT: WIN" else "❌ RESULT: LOSS",
+                    "Prediction: $pick\nActual Result: $actual\nPeriod: $target\nLevel: $resolvedLevel\nSession Wins: $wins/5")
+            }
+            prefs.edit().putString("bg_predictions_json",predictions.toString())
+                .putInt("bg_wins",wins).putInt("bg_level",level).commit()
+
+            if (wins >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }
+            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
+            if (level >= 8 && resolved.any { it.third == "LOSS" }) {
+                val lastLoss = resolved.lastOrNull { it.third == "LOSS" }
+                if (lastLoss != null) {
+                    val lossItem = predictions.optJSONObject(lastLoss.second)
+                    if (lossItem?.optInt("level",1) == 8) {
+                        prefs.edit().putBoolean("bg_stopped",true).commit()
+                        send("सेशन समाप्त","Level 8 पर LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
                         return
                     }
                 }
             }
 
-            // Never create another prediction while the previous target is unresolved.
-            if (prefs.getString("bg_pending_period","").orEmpty().isNotBlank()) { updateMonitorDiagnostic("Prediction भेजी गई • Period " + prefs.getString("bg_pending_period", "") + " के रिजल्ट का इंतज़ार"); return }
-            val history = orderedRows.take(10).map { (_, row) ->
-                row.optString("size").uppercase(Locale.ROOT)
+            val targetPeriod = newestPeriod.add(java.math.BigInteger.ONE).toString()
+            val alreadyRecorded = (0 until predictions.length()).any { i ->
+                val item = predictions.optJSONObject(i)
+                item?.optString("period") == targetPeriod && item.optString("status") != "FAILED"
             }
+            if (alreadyRecorded) {
+                updateMonitorDiagnostic("Period $targetPeriod की prediction पहले से सेव है • अगली history का इंतज़ार")
+                return
+            }
+            val history = orderedRows.take(10).map { it.second.optString("size").uppercase(Locale.ROOT) }
             if (history.size < 3) { updateMonitorDiagnostic("Service reader: only " + history.size + " valid results"); return }
             val tail = history.take(3)
             val bigCount = history.count { it == "BIG" }
             val smallCount = history.count { it == "SMALL" }
-            // Priority: three consecutive identical results continue in the same direction;
-            // otherwise use the majority among the latest ten results.
             val pick = when {
-                tail.size == 3 && tail.all { it == "BIG" } -> "BIG"
-                tail.size == 3 && tail.all { it == "SMALL" } -> "SMALL"
-                tail.size == 3 && tail[0] != tail[1] && tail[1] != tail[2] -> if (tail[2] == "BIG") "SMALL" else "BIG"
+                tail.all { it == "BIG" } -> "BIG"
+                tail.all { it == "SMALL" } -> "SMALL"
+                tail[0] == "BIG" && tail[1] == "SMALL" && tail[2] == "BIG" -> "SMALL"
+                tail[0] == "SMALL" && tail[1] == "BIG" && tail[2] == "SMALL" -> "BIG"
                 bigCount > smallCount -> "BIG"
                 smallCount > bigCount -> "SMALL"
                 else -> tail.first()
             }
-            val targetPeriod = try {
-                java.math.BigInteger(period).add(java.math.BigInteger.ONE).toString()
-            } catch (_: Exception) { return }
-            val level = prefs.getInt("bg_level",1).coerceIn(1,8)
+            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
-            updateMonitorDiagnostic("Prediction ready: " + targetPeriod + " • Telegram sending…")
-            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nPrediction: $pick\nTarget Period: $targetPeriod\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
+            val record = JSONObject().put("period",targetPeriod).put("pick",pick)
+                .put("level",currentLevel).put("status","SENDING").put("createdAt",System.currentTimeMillis())
+            predictions.put(record)
+            // Commit the target reservation before the network call: duplicate snapshots cannot send it twice.
+            if (!prefs.edit().putString("bg_predictions_json",predictions.toString()).commit()) {
+                predictionSendInFlight = false
+                updateMonitorDiagnostic("Prediction save failed • Telegram नहीं भेजा गया")
+                return
+            }
+            val previousPeriod = prefs.getString("bg_last_result_period","").orEmpty()
+            val previousOutcome = prefs.getString("bg_last_outcome","—").orEmpty()
+            val previousLine = if (previousPeriod.isNotBlank()) "पिछला Period: $previousPeriod • Result: $previousOutcome\n" else ""
+            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nTarget Period: $targetPeriod\n$previousLineLevel: $currentLevel\nSession Wins: $wins/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
+            updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
-                if (ok) {
-                    prefs.edit().putString("bg_pending_period",targetPeriod).putString("bg_pending_pick",pick).apply()
-                    updateMonitorDiagnostic("Telegram sent • Prediction " + pick + " • Period " + targetPeriod)
-                } else {
+                val latestJson = org.json.JSONArray(prefs.getString("bg_predictions_json","[]") ?: "[]")
+                for (i in 0 until latestJson.length()) {
+                    val item = latestJson.optJSONObject(i) ?: continue
+                    if (item.optString("period") == targetPeriod && item.optString("status") == "SENDING") {
+                        item.put("status",if (ok) "SENT" else "FAILED")
+                    }
+                }
+                prefs.edit().putString("bg_predictions_json",latestJson.toString()).commit()
+                if (ok) updateMonitorDiagnostic("Telegram sent • Prediction $pick • Period $targetPeriod")
+                else {
                     android.util.Log.e("BackgroundMonitor", "Prediction Telegram failed: $detail")
                     updateMonitorDiagnostic("Telegram send failed • " + detail)
                 }
             }
             lastPoll = System.currentTimeMillis()
-
         } catch (e: Exception) {
             android.util.Log.e("BackgroundMonitor", "Prediction pipeline failed", e)
             val reason = e.localizedMessage ?: e.javaClass.simpleName
