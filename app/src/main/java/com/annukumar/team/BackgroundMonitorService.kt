@@ -25,6 +25,7 @@ class BackgroundMonitorService : Service() {
     private val prefs by lazy { getSharedPreferences("paper", MODE_PRIVATE) }
     private var ready = false
     private var lastPoll = 0L
+    @Volatile private var predictionSendInFlight = false
     private val poller = object : Runnable {
         override fun run() {
             if (ready && isOnline()) web.evaluateJavascript(READER) { raw ->
@@ -152,8 +153,21 @@ class BackgroundMonitorService : Service() {
                 java.math.BigInteger(period).add(java.math.BigInteger.ONE).toString()
             } catch (_: Exception) { return }
             val level = prefs.getInt("bg_level",1).coerceIn(1,8)
-            prefs.edit().putString("bg_pending_period",targetPeriod).putString("bg_pending_pick",pick).apply()
-            send("🎯 PREDICTION: $pick", "गेम: $mode\nPrediction: $pick\nTarget Period: $targetPeriod\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।")
+            if (predictionSendInFlight) return
+            predictionSendInFlight = true
+            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nPrediction: $pick\nTarget Period: $targetPeriod\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
+            SessionScheduler.sendTelegram(this, message) { ok, detail ->
+                predictionSendInFlight = false
+                if (ok) {
+                    prefs.edit().putString("bg_pending_period",targetPeriod).putString("bg_pending_pick",pick).apply()
+                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(7102, notification("Telegram पर prediction भेज दी गई • $targetPeriod"))
+                } else {
+                    android.util.Log.e("BackgroundMonitor", "Prediction Telegram failed: $detail")
+                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(7102, notification("Prediction नहीं भेजी गई: $detail • अगली कोशिश होगी"))
+                }
+            }
             lastPoll = System.currentTimeMillis()
 
         } catch (e: Exception) { android.util.Log.e("BackgroundMonitor","parse",e) }
