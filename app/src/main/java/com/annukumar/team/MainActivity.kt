@@ -223,18 +223,24 @@ class MainActivity : Activity() {
     }
 
     private fun updateDashboard(mode: String, rows: List<Pair<String, String>>) {
+        // Always order by numeric period, not DOM position: highest period is newest.
+        val orderedRows = rows.sortedByDescending {
+            try { java.math.BigInteger(it.first) } catch (_: Exception) { java.math.BigInteger.ZERO }
+        }
         selectedModeName = mode
-        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${rows.size}/10"
-        if (rows.isEmpty()) {
+        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${orderedRows.size}/10"
+        if (orderedRows.isEmpty()) {
             predictionView.text = "अनुमान: पर्याप्त डेटा नहीं"
             trendView.text = "ट्रेंड: —"
             historyView.text = "हाल के नतीजे: —"
             return
         }
-        val big = rows.count { it.second == "BIG" }
-        val small = rows.size - big
-        val latest = rows.first().second
-        val streak = rows.takeWhile { it.second == latest }.size
+        val big = orderedRows.count { it.second == "BIG" }
+        val small = orderedRows.size - big
+        val latestPeriod = orderedRows.first().first
+        val targetPeriod = try { java.math.BigInteger(latestPeriod).add(java.math.BigInteger.ONE).toString() } catch (_: Exception) { latestPeriod }
+        val latest = orderedRows.first().second
+        val streak = orderedRows.takeWhile { it.second == latest }.size
         val trend = when {
             big > small -> "BIG अधिक: $big बनाम SMALL $small"
             small > big -> "SMALL अधिक: $small बनाम BIG $big"
@@ -246,15 +252,15 @@ class MainActivity : Activity() {
             else -> latest
         }
         val confidence = when {
-            rows.size < 5 -> "कम"
+            orderedRows.size < 5 -> "कम"
             kotlin.math.abs(big - small) >= 4 -> "मध्यम (सिर्फ पैटर्न-आधारित)"
             else -> "कम (पैटर्न कमजोर)"
         }
-        predictionView.text = "अनुमान: $pick  •  भरोसा: $confidence"
+        predictionView.text = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  भरोसा: $confidence"
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
-        historyView.text = "हाल के ${rows.size}: " + rows.joinToString("  ›  ") { it.second }
+        historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
 
-        val predictionKey = "$mode|${rows.first().first}|$pick"
+        val predictionKey = "$mode|$targetPeriod|$pick"
         if (predictionKey != lastTelegramPredictionKey) {
             lastTelegramPredictionKey = predictionKey
             val tokenConfigured = prefs.getString("telegram_bot_token", "").orEmpty().isNotBlank()
@@ -263,7 +269,8 @@ class MainActivity : Activity() {
                 val message = "🎯 <b>ANNU / TEAM — LIVE UPDATE</b>\n" +
                     "━━━━━━━━━━━━━━━━━━\n" +
                     "🎮 <b>Game:</b> $mode\n" +
-                    "🆔 <b>Period:</b> <code>${rows.first().first}</code>\n" +
+                    "🆔 <b>Target Period:</b> <code>$targetPeriod</code>\n" +
+                    "⏮ <b>Previous Period:</b> <code>$latestPeriod</code>\n" +
                     "📌 <b>Latest Result:</b> <b>$latest</b>\n" +
                     "━━━━━━━━━━━━━━━━━━\n" +
                     "📊 <b>LAST 10 RESULTS</b>\n" +
