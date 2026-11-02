@@ -179,7 +179,7 @@ class MainActivity : Activity() {
             setTextColor(white)
             setHintTextColor(muted)
             inputType = 129
-            singleLine = true
+            setSingleLine(true)
             backgroundTintList = ColorStateList.valueOf(accent)
         }
         content.addView(tokenField, LinearLayout.LayoutParams(-1, dp(52)))
@@ -192,7 +192,7 @@ class MainActivity : Activity() {
             setText(prefs.getString("telegram_chat_id", ""))
             setTextColor(white)
             setHintTextColor(muted)
-            singleLine = true
+            setSingleLine(true)
             backgroundTintList = ColorStateList.valueOf(accent)
         }
         content.addView(chatField, LinearLayout.LayoutParams(-1, dp(52)))
