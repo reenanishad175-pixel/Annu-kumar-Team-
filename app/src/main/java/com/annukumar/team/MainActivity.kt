@@ -249,6 +249,27 @@ class MainActivity : Activity() {
         predictionView.text = "अनुमान: $pick  •  भरोसा: $confidence"
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${rows.size}: " + rows.joinToString("  ›  ") { it.second }
+
+        // Send one Telegram update for each newly observed latest period, never every poll.
+        val predictionKey = "$mode|${rows.first().first}|$pick"
+        if (predictionKey != lastTelegramPredictionKey) {
+            lastTelegramPredictionKey = predictionKey
+            val tokenConfigured = prefs.getString("telegram_bot_token", "").orEmpty().isNotBlank()
+            val chatConfigured = prefs.getString("telegram_chat_id", "").orEmpty().isNotBlank()
+            if (tokenConfigured && chatConfigured) {
+                val message = "ANNU / TEAM • LIVE PATTERN UPDATE\\n" +
+                    "Game: $mode\\n" +
+                    "Latest period: ${rows.first().first} ($latest)\\n" +
+                    "Pattern sample: ${rows.size} results\\n" +
+                    "BIG: $big | SMALL: $small\\n" +
+                    "Trend: $trend\\n" +
+                    "Current streak: $latest × $streak\\n" +
+                    "Pattern estimate: $pick\\n" +
+                    "Estimate strength: $confidence\\n" +
+                    "Note: Pattern-based estimate only; not a guaranteed result."
+                sendTelegram(message)
+            }
+        }
     }
 
     private fun buildSettings(): ScrollView {
