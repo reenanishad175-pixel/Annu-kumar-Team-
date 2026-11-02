@@ -41,6 +41,7 @@ class MainActivity : Activity() {
     private lateinit var predictionView: TextView
     private lateinit var trendView: TextView
     private lateinit var historyView: TextView
+    private lateinit var telegramDiagnosticView: TextView
     private var panelMinimized = false
     private var selectedModeName = "अभी कोई गेम चयनित नहीं"
     private lateinit var settingsScreen: ScrollView
@@ -66,6 +67,7 @@ class MainActivity : Activity() {
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
+            refreshTelegramDiagnostic()
             handler.postDelayed(this, 2500)
         }
     }
@@ -204,15 +206,25 @@ class MainActivity : Activity() {
         predictionView = label("अनुमान: डेटा का इंतज़ार", 17f).apply { setTextColor(accent) }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
         historyView = label("हाल के नतीजे: —", 12f).apply { setTextColor(muted) }
+        telegramDiagnosticView = label("Telegram: मॉनिटर स्थिति जाँची जा रही है…", 12f).apply { setTextColor(Color.rgb(255, 193, 7)) }
         panelBody.addView(selectedModeView)
         panelBody.addView(predictionView)
         panelBody.addView(trendView)
         panelBody.addView(historyView)
+        panelBody.addView(telegramDiagnosticView)
         floatingPanel.addView(panelBody)
         val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
         lp.setMargins(dp(8), 0, dp(8), dp(8))
         dashboard.addView(floatingPanel, lp)
         floatingPanel.bringToFront()
+    }
+
+    private fun refreshTelegramDiagnostic() {
+        if (!::telegramDiagnosticView.isInitialized) return
+        val message = prefs.getString("telegram_last_diagnostic", "मॉनिटर ने अभी स्थिति नहीं दी") ?: "मॉनिटर ने अभी स्थिति नहीं दी"
+        val at = prefs.getLong("telegram_last_diagnostic_at", 0L)
+        val age = if (at > 0L) ((System.currentTimeMillis() - at) / 1000L).coerceAtLeast(0L) else -1L
+        telegramDiagnosticView.text = if (age >= 0L) "Telegram / Monitor: $message  •  ${age}s पहले" else "Telegram / Monitor: $message"
     }
 
     private fun toggleDashboard() {
@@ -227,7 +239,7 @@ class MainActivity : Activity() {
             try { java.math.BigInteger(it.first) } catch (_: Exception) { java.math.BigInteger.ZERO }
         }
         selectedModeName = mode
-        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${orderedRows.size}/10"
+        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${orderedRows.size}/10"\n        refreshTelegramDiagnostic()
         if (orderedRows.isEmpty()) {
             predictionView.text = "अनुमान: पर्याप्त डेटा नहीं"
             trendView.text = "ट्रेंड: —"
