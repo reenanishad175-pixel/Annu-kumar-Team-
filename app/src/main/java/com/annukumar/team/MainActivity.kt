@@ -234,34 +234,18 @@ class MainActivity : Activity() {
 
     private fun readPage() {
         if (!::web.isInitialized) return
-        // Return structured visible text and only explicitly labelled result chips.
-        // JSONArray safely decodes WebView's quoted/escaped JavaScript return value.
+        // BDG's visible history is a row with Period | Number | Big Small | Color.
+        // Read visible page text and parse complete row tuples; never mix a period
+        // from one row with a result label from another row.
         val script = """(function(){
           const visible = e => !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));
-          const bodyText = document.body ? document.body.innerText : '';
-          const nodes = Array.from(document.querySelectorAll(
-            '[aria-label],[title],[data-result],.history *,.result *,.record *,[class*=history i],[class*=result i]'
-          )).filter(visible);
-          const outcomes = [];
-          for (const e of nodes) {
-            const t = ((e.getAttribute('data-result') || e.getAttribute('aria-label') ||
-              e.getAttribute('title') || e.innerText || e.textContent || '').trim().toUpperCase();
-            const childRepeats = Array.from(e.children).some(ch =>
-              (ch.innerText || ch.textContent || '').trim().toUpperCase() === t);
-            if (/^(BIG|SMALL)$/.test(t) && !childRepeats) outcomes.push(t);
-          }
-          return JSON.stringify({text: bodyText.slice(0,20000), outcomes: outcomes.slice(-10)});
+          const text = document.body ? document.body.innerText : '';
+          return JSON.stringify({text: text.slice(0,30000)});
         })()"""
         web.evaluateJavascript(script) { raw ->
             try {
                 val decoded = JSONArray("[" + (raw ?: "{}") + "]").getJSONObject(0)
-                val outcomes = mutableListOf<String>()
-                val array = decoded.optJSONArray("outcomes")
-                if (array != null) for (i in 0 until array.length()) {
-                    val value = array.optString(i).uppercase()
-                    if (value == "BIG" || value == "SMALL") outcomes.add(value)
-                }
-                inspectText(decoded.optString("text"), outcomes)
+                inspectText(decoded.optString("text"))
             } catch (_: Exception) {
                 status.text = "BDG page text could not be decoded. Reload the game page and try again."
             }
@@ -270,12 +254,22 @@ class MainActivity : Activity() {
 
     private fun inspectText(rawText: String, labelledOutcomes: List<String> = emptyList()) {
         val content = rawText.replace(Regex("\\s+"), " ").trim()
-        // A long number is a period only beside an explicit period/issue/round label.
-        val periodMatch = Regex(
-            "(?:period|issue\\s*(?:no\\.?|number)?|round\\s*(?:no\\.?|number)?|期号)\\s*[:#-]?\\s*(\\d{6,24})",
-            RegexOption.IGNORE_CASE
-        ).find(content)
-        val period = periodMatch?.groupValues?.getOrNull(1).orEmpty()
+        // Match complete history rows in the same order shown by BDG:
+        // 19-digit period, one result digit, then the displayed BIG/SMALL value.
+        val rowRegex = Regex("(\\d{15,24})\\s+([0-9])\\s+(BIG|SMALL)", RegexOption.IGNORE_CASE)
+        val rows = rowRegex.findAll(content).mapNotNull { match ->
+            val periodId = match.groupValues[1]
+            val number = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+            val displayed = match.groupValues[3].uppercase()
+            val calculated = if (number <= 4) "SMALL" else "BIG"
+            if (displayed != calculated) null else Triple(periodId, number, calculated)
+        }.toList()
+
+        // The current round appears above the history table on the BDG page.
+        // Prefer the first long period-like value on the page, then the newest
+        // validated history row as a fallback.
+        val period = Regex("\\b\\d{15,24}\\b").find(content)?.value
+            ?: rows.firstOrNull()?.first.orEmpty()
         val detectedTimer = when {
             Regex("(?:30\\s*(?:s|sec|seconds)|\\b30秒)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "30S"
             Regex("(?:1\\s*(?:m|min|minute)|\\b1分钟)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "1M"
@@ -292,15 +286,19 @@ class MainActivity : Activity() {
                 addPaperPrediction(period)
             }
         } else {
-            periodView.text = "Period: Not detected (label not found)"
-            status.text = "BDG page is readable, but a labelled period number was not found. Select WinGo and reload."
+            periodView.text = "Period: Not detected"
         }
-        if (labelledOutcomes.size >= 3) {
-            val recent = labelledOutcomes.takeLast(10)
-            resultsInput.setText(recent.joinToString(" "))
-            status.text = "BDG displayed BIG/SMALL labels detected (" + recent.size + "). Verify these against the visible result history before paper analysis."
+
+        if (rows.isNotEmpty()) {
+            // BDG displays newest first; the manual pattern analyzer expects old-to-new.
+            val recent = rows.take(10).asReversed()
+            resultsInput.setText(recent.joinToString(" ") { it.third })
+            status.text = "BDG history rows read: " + recent.size +
+                ". Period, number and BIG/SMALL were cross-checked; verify on screen before paper analysis."
         } else if (labelledOutcomes.isNotEmpty()) {
-            status.text = "BDG showed only " + labelledOutcomes.size + " labelled result(s); at least 3 are needed. No signal generated."
+            status.text = "Only standalone result labels were found; no complete Period/Number/Big-Small rows. No history imported."
+        } else {
+            status.text = "BDG page visible, but complete history rows were not readable. Open WinGo 30sec Game history."
         }
     }
 
