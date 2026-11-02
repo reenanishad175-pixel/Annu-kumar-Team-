@@ -264,7 +264,8 @@ class MainActivity : Activity() {
             var latestPeriod = ""
             var latestSize = ""
             var added = 0
-            for (i in 0 until rows.length()) {
+            // BDG Game History is newest-first; reverse it to keep the sample chronological.
+            for (i in rows.length() - 1 downTo 0) {
                 val row = rows.getJSONObject(i)
                 val period = row.optString("period")
                 val size = row.optString("size").uppercase()
