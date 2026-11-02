@@ -13,11 +13,6 @@ import android.webkit.WebViewClient
 import android.widget.*
 import android.os.Handler
 import android.os.Looper
-import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
-import com.google.firebase.FirebaseException
 import org.json.JSONObject
 import org.json.JSONArray
 import java.util.concurrent.TimeUnit
@@ -31,9 +26,7 @@ import java.net.URLEncoder
  * This application does not submit wagers or automate betting controls.
  */
 class MainActivity : Activity() {
-    private val auth by lazy { FirebaseAuth.getInstance() }
     private val handler = Handler(Looper.getMainLooper())
-    private var verificationId: String? = null
     private lateinit var web: WebView
     private lateinit var status: TextView
     private lateinit var account: TextView
@@ -47,8 +40,6 @@ class MainActivity : Activity() {
     private var consecutiveLosses = 0
     private var sessionEnded = false
     private lateinit var startButton: Button
-    private lateinit var phone: EditText
-    private lateinit var otp: EditText
     private lateinit var telegramToken: EditText
     private lateinit var telegramChatId: EditText
     private lateinit var telegramEnabled: CheckBox
@@ -70,7 +61,6 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FirebaseApp.initializeApp(this)
         restoreTrackerState()
         setContentView(makeUi())
         renderHistory()
@@ -94,10 +84,8 @@ class MainActivity : Activity() {
         setOnClickListener { f() }
     }
 
-    private lateinit var loginPanel: LinearLayout
     private lateinit var dashboardPanel: LinearLayout
     private lateinit var settingsPanel: LinearLayout
-    private lateinit var appPhone: EditText
 
     private fun makeUi(): View {
         val navy = Color.rgb(10, 16, 30)
@@ -144,30 +132,13 @@ class MainActivity : Activity() {
         body.addView(brand)
         body.addView(note("WinGo companion  •  Paper dashboard"))
 
-        loginPanel = card()
-        loginPanel.addView(heading("आपका मोबाइल नंबर", 20f))
-        loginPanel.addView(note("यह ऐप आपके फोन पर लोकल प्रोफाइल बनाएगा। पासवर्ड या अलग अकाउंट की जरूरत नहीं।"))
-        appPhone = field("मोबाइल नंबर, जैसे +91XXXXXXXXXX")
-        appPhone.inputType = 3
-        loginPanel.addView(appPhone)
-        loginPanel.addView(action("आगे बढ़ें") {
-            val number = appPhone.text.toString().trim()
-            if (number.replace(Regex("\\D"), "").length < 10) {
-                status.text = "कृपया सही मोबाइल नंबर डालें।"
-            } else {
-                prefs.edit().putString("app_phone", number).apply()
-                showDashboard()
-            }
-        })
-        body.addView(loginPanel)
-
         dashboardPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
+            visibility = View.VISIBLE
         }
         val welcome = card()
         welcome.addView(heading("आपका डैशबोर्ड", 21f))
-        account = note("मोबाइल: " + (prefs.getString("app_phone", "") ?: ""))
+        account = note("Private mode • यह ऐप केवल इसी डिवाइस पर चलता है")
         welcome.addView(account)
         status = note("तैयार है। नीचे से BDG इतिहास पढ़ें या सेटिंग खोलें।")
         welcome.addView(status)
@@ -195,12 +166,6 @@ class MainActivity : Activity() {
         settingsPanel.addView(action("टेस्ट मैसेज भेजें") {
             saveTelegramSettings()
             sendTelegramMessage("Annu Kumar Team: Telegram test message.")
-        })
-        settingsPanel.addView(action("मोबाइल नंबर बदलें") {
-            prefs.edit().remove("app_phone").apply()
-            dashboardPanel.visibility = View.GONE
-            loginPanel.visibility = View.VISIBLE
-            appPhone.setText("")
         })
         dashboardPanel.addView(settingsPanel)
 
@@ -266,64 +231,7 @@ class MainActivity : Activity() {
         body.addView(dashboardPanel)
 
         outer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val savedPhone = prefs.getString("app_phone", "") ?: ""
-        if (savedPhone.isNotBlank()) showDashboard()
         return outer
-    }
-
-    private fun showDashboard() {
-        loginPanel.visibility = View.GONE
-        dashboardPanel.visibility = View.VISIBLE
-        account.text = "मोबाइल: " + (prefs.getString("app_phone", "") ?: "")
-        if (!::web.isInitialized || web.url == null) {
-            if (::web.isInitialized) web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!)
-        }
-    }
-
-    private fun updateAccount() {
-        val user = auth.currentUser
-        account.text = if (user == null) "Firebase: signed out / guest available"
-            else "Firebase phone: " + (user.phoneNumber ?: "verified account")
-    }
-
-    private fun sendOtp() {
-        val number = phone.text.toString().trim()
-        if (!number.startsWith("+") || number.length < 10) {
-            status.text = "Enter full phone number with country code."
-            return
-        }
-        val options = PhoneAuthOptions.newBuilder(auth)
-            .setPhoneNumber(number)
-            .setTimeout(60L, TimeUnit.SECONDS)
-            .setActivity(this)
-            .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
-                    auth.signInWithCredential(credential).addOnCompleteListener {
-                        updateAccount()
-                        status.text = if (it.isSuccessful) "Phone verification successful." else "Login failed."
-                    }
-                }
-                override fun onVerificationFailed(e: FirebaseException) {
-                    status.text = "OTP failed: " + (e.localizedMessage ?: "Check Firebase Phone Auth setup.")
-                }
-                override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
-                    verificationId = id
-                    otp.visibility = View.VISIBLE
-                    status.text = "SMS OTP sent."
-                }
-            }).build()
-        PhoneAuthProvider.verifyPhoneNumber(options)
-    }
-
-    private fun verifyOtp() {
-        val id = verificationId
-        if (id == null) { status.text = "Send OTP first."; return }
-        val code = otp.text.toString().trim()
-        if (code.length < 4) { status.text = "Enter the SMS OTP."; return }
-        auth.signInWithCredential(PhoneAuthProvider.getCredential(id, code)).addOnCompleteListener {
-            if (it.isSuccessful) { updateAccount(); status.text = "Phone login successful." }
-            else status.text = "Login failed: " + (it.exception?.localizedMessage ?: "Unknown error")
-        }
     }
 
     /**
