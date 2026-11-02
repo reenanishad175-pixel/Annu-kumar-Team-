@@ -30,7 +30,8 @@ class BackgroundMonitorService : Service() {
         createChannel()
         startForeground(7101, notification("बैकग्राउंड मॉनिटरिंग चालू है"))
         // Keep the CPU awake while the user-enabled foreground monitor is active.
-        // This reduces Doze-related gaps but cannot force WebView JavaScript to run.\n        try {
+        // This reduces Doze-related gaps but cannot force WebView JavaScript to run.
+        try {
             val power = getSystemService(POWER_SERVICE) as PowerManager
             cpuWakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AnnuKumarTeam:HistoryMonitor").apply {
                 setReferenceCounted(false)
