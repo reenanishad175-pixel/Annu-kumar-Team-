@@ -187,7 +187,7 @@ class BackgroundMonitorService : Service() {
                     }
                 }
                 prefs.edit().putString("bg_predictions_json",latestJson.toString()).commit()
-                if (ok) updateMonitorDiagnostic("Telegram sent • Prediction $pick • Period $targetPeriod")
+                if (ok) { SessionScheduler.markFirstSignalSent(this, activeHour); updateMonitorDiagnostic("Telegram sent • Prediction $pick • Period $targetPeriod") }
                 else {
                     android.util.Log.e("BackgroundMonitor", "Prediction Telegram failed: $detail")
                     updateMonitorDiagnostic("Telegram send failed • " + detail)
