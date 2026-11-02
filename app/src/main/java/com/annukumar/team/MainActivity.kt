@@ -372,17 +372,17 @@ class MainActivity : Activity() {
 
           // Detect the selected duration, not merely the presence of the word Bingo.
           var modes = [
-            {name:'Bingo 30 Seconds', re:/^bingo\\s*(30\\s*(seconds?|secs?|sec|s))$/i},
-            {name:'Bingo 1 Minute', re:/^bingo\\s*(1\\s*(minute|min|m))$/i},
-            {name:'Bingo 3 Minutes', re:/^bingo\\s*(3\\s*(minutes|min|m))$/i},
-            {name:'Bingo 5 Minutes', re:/^bingo\\s*(5\\s*(minutes|min|m))$/i}
+            {name:'Bingo 30 Seconds', re:/^bingo\s*(30\s*(seconds?|secs?|sec|s))$/i},
+            {name:'Bingo 1 Minute', re:/^bingo\s*(1\s*(minute|min|m))$/i},
+            {name:'Bingo 3 Minutes', re:/^bingo\s*(3\s*(minutes|min|m))$/i},
+            {name:'Bingo 5 Minutes', re:/^bingo\s*(5\s*(minutes|min|m))$/i}
           ];
           var selected = null, scope = document;
           var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
           for (var i=0; i<candidates.length; i++) {
             var el = candidates[i];
             if (!visible(el)) continue;
-            var label = textOf(el).replace(/\\s+/g, ' ').trim();
+            var label = textOf(el).replace(/\s+/g, ' ').trim();
             if (label.length > 32) continue;
             var mode = modes.find(function(m){ return m.re.test(label); });
             if (!mode) continue;
@@ -390,10 +390,10 @@ class MainActivity : Activity() {
             var active = el.getAttribute('aria-selected') === 'true' ||
               el.getAttribute('aria-pressed') === 'true' ||
               el.getAttribute('data-state') === 'active' ||
-              /(^|\\s)(active|selected|current|is-active|tab-active)(\\s|$)/.test(cls);
+              /(^|\s)(active|selected|current|is-active|tab-active)(\s|$)/.test(cls);
             if (!active && el.parentElement) {
               var pc = String(el.parentElement.className && el.parentElement.className.baseVal || el.parentElement.className || '').toLowerCase();
-              active = /(^|\\s)(active|selected|current|is-active|tab-active)(\\s|$)/.test(pc);
+              active = /(^|\s)(active|selected|current|is-active|tab-active)(\s|$)/.test(pc);
             }
             if (active) {
               selected = mode.name;
@@ -416,9 +416,9 @@ class MainActivity : Activity() {
           function parseContainer(el, period) {
             var txt = textOf(el);
             if (!txt || txt.length > 420) return;
-            var sizeMatch = txt.match(/\\b(BIG|SMALL)\\b/i);
+            var sizeMatch = txt.match(/\b(BIG|SMALL)\b/i);
             if (sizeMatch) { add(period, sizeMatch[1].toUpperCase()); return; }
-            var digitMatch = txt.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
+            var digitMatch = txt.match(/(?:^|\s)([0-9])(?:\s|$)/);
             if (digitMatch) add(period, Number(digitMatch[1]) >= 5 ? 'BIG' : 'SMALL');
           }
           function scanRoot(root) {
@@ -426,19 +426,19 @@ class MainActivity : Activity() {
             docs.push(root);
             root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function(row) {
               if (!visible(row)) return;
-              var p = textOf(row).match(/\\b[0-9]{8,24}\\b/);
+              var p = textOf(row).match(/\b[0-9]{8,24}\b/);
               if (p) parseContainer(row, p[0]);
             });
             root.querySelectorAll('body *,*').forEach(function(el) {
               if (!visible(el)) return;
               var own = textOf(el);
               if (!own || own.length > 420) return;
-              var pm = own.match(/\\b[0-9]{8,24}\\b/);
+              var pm = own.match(/\b[0-9]{8,24}\b/);
               if (!pm) return;
               for (var node=el, depth=0; node && depth<5; depth++, node=node.parentElement) {
                 var block = textOf(node);
                 if (block.length > 420) break;
-                if (new RegExp('\\\\b'+pm[0]+'\\\\b').test(block) && /\\b(BIG|SMALL)\\b/i.test(block)) {
+                if (new RegExp('\\b'+pm[0]+'\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
                   parseContainer(node, pm[0]); break;
                 }
               }
