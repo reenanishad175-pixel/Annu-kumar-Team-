@@ -386,7 +386,12 @@ class MainActivity : Activity() {
         status.text = "Telegram सेटिंग्स"
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {\n        super.onRequestPermissionsResult(requestCode, permissions, grantResults)\n        if (requestCode == 901 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) BackgroundMonitorService.start(this)\n    }\n\n    private fun saveSettings() {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 901 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) BackgroundMonitorService.start(this)
+    }
+
+    private fun saveSettings() {
         prefs.edit()
             .putString("telegram_bot_token", tokenField.text.toString().trim())
             .putString("telegram_chat_id", chatField.text.toString().trim())
