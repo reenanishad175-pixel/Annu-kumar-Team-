@@ -429,32 +429,11 @@ class MainActivity : Activity() {
     }
 
     private fun sendTelegram(message: String) {
-        val token = prefs.getString("telegram_bot_token", "").orEmpty()
-        val chatId = prefs.getString("telegram_chat_id", "").orEmpty()
-        if (token.isBlank() || chatId.isBlank()) {
-            status.text = "Telegram not sent • Settings में Bot Token और Chat ID भरें"
-            return
-        }
-        thread {
-            var connection: HttpURLConnection? = null
-            try {
-                connection = (URL("https://api.telegram.org/bot" + token + "/sendMessage").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 10000
-                    readTimeout = 10000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                }
-                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&parse_mode=HTML&text=" + URLEncoder.encode(message, "UTF-8")
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                val code = connection.responseCode
-                val response = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val ok = code in 200..299 && JSONObject(response).optBoolean("ok", false)
-                runOnUiThread { status.text = if (ok) "Telegram message sent successfully" else "Telegram failed (HTTP " + code + ") • Token/Chat ID जाँचें" }
-            } catch (e: Exception) {
-                runOnUiThread { status.text = "Telegram error • " + (e.localizedMessage ?: "network error") }
-            } finally {
-                connection?.disconnect()
+        status.text = "Telegram: संदेश भेजा जा रहा है…"
+        SessionScheduler.sendTelegram(this, message) { ok, detail ->
+            runOnUiThread {
+                status.text = if (ok) "Telegram message sent successfully"
+                    else "Telegram failed • $detail"
             }
         }
     }
