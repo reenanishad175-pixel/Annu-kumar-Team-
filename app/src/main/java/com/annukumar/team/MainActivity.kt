@@ -368,24 +368,29 @@ class MainActivity : Activity() {
 
     companion object {
         private const val HISTORY_READER_JS = """(function() {
-          var out = [];
-          Array.from(document.querySelectorAll('tr')).forEach(function(tr) {
-            var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td) {
-              return (td.innerText || td.textContent || '').trim();
-            });
-            var period = cells.find(function(x) { return /^[0-9]{12,24}$/.test(x); });
-            if (!period) return;
-            var digit = null;
-            var pi = cells.indexOf(period);
-            for (var i = pi + 1; i < cells.length; i++) {
-              if (/^[0-9]$/.test(cells[i])) { digit = parseInt(cells[i], 10); break; }
-            }
-            if (digit === null) return;
-            var size = cells.find(function(x) { return /^(big|small)$/i.test(x); });
-            if (!size) size = digit >= 5 ? 'BIG' : 'SMALL';
-            out.push({period: period, size: size.toUpperCase()});
+          var found = [];
+          var seen = {};
+          var nodes = Array.from(document.querySelectorAll('body *'));
+          // BDG's history may be rendered as div/li cards rather than table <tr> rows.
+          // Inspect compact visible text containers and deduplicate by period.
+          nodes.forEach(function(el) {
+            if (!el || !el.getClientRects || !el.getClientRects().length) return;
+            var text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+            if (!text || text.length > 700) return;
+            var periods = text.match(/\\b[0-9]{12,24}\\b/g);
+            if (!periods || !periods.length) return;
+            var sizeMatch = text.match(/\\b(BIG|SMALL)\\b/i);
+            var digitMatch = text.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
+            if (!sizeMatch && !digitMatch) return;
+            var period = periods[0];
+            if (seen[period]) return;
+            var size = sizeMatch ? sizeMatch[1].toUpperCase() :
+              (parseInt(digitMatch[1], 10) >= 5 ? 'BIG' : 'SMALL');
+            found.push({period: period, size: size, sample: text.slice(0, 180)});
+            seen[period] = true;
           });
-          return JSON.stringify(out);
+          // Keep likely history entries, not huge page wrappers.
+          return JSON.stringify(found.slice(0, 250));
         })()"""
     }
 }
