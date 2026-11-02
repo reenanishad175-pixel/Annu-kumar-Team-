@@ -77,43 +77,52 @@ class BackgroundMonitorService : Service() {
             val hour = cal.get(Calendar.HOUR_OF_DAY)
             val minute = cal.get(Calendar.MINUTE)
             val sessions = intArrayOf(10,15,18,21)
-            val activeHour = sessions.lastOrNull { it <= hour }
-            if (activeHour == null || hour !in sessions || minute < 0) return
+            val activeHour = sessions.lastOrNull { it <= hour } ?: return
             val date = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
             val sessionKey = "$date-$activeHour"
-            val ed = prefs.edit()
             if (prefs.getString("bg_session","") != sessionKey) {
-                ed.putString("bg_session",sessionKey).putInt("bg_wins",0).putInt("bg_level",1)
-                    .putString("bg_pending_period","").putString("bg_pending_pick","").apply()
+                prefs.edit().putString("bg_session",sessionKey).putInt("bg_wins",0).putInt("bg_level",1)
+                    .putBoolean("bg_stopped",false)
+                    .putString("bg_pending_period","").putString("bg_pending_pick","")
+                    .putString("bg_last_result_period","").apply()
             }
             if (prefs.getInt("bg_wins",0) >= 5 || prefs.getBoolean("bg_stopped",false)) return
+            val ed = prefs.edit()
             val oldPeriod = prefs.getString("bg_pending_period","").orEmpty()
             if (oldPeriod.isNotBlank() && oldPeriod != period && prefs.getString("bg_last_result_period","") != period) {
                 val pick = prefs.getString("bg_pending_pick","").orEmpty()
                 if (pick.isNotBlank()) {
                     val win = pick == result
+                    val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
                     val wins = prefs.getInt("bg_wins",0) + if (win) 1 else 0
-                    val level = if (win) 1 else prefs.getInt("bg_level",1) + 1
-                    ed.putInt("bg_wins",wins).putInt("bg_level",level).putString("bg_last_result_period",period).apply()
-                    send(if(win) "✅ WIN" else "❌ LOSS", "गेम: $mode\nPeriod: $period\nResult: $result\nWins: $wins/5\nNext Level: $level")
-                    if (wins >= 5 || level > 8) {
+                    val nextLevel = if (win) 1 else currentLevel + 1
+                    ed.putInt("bg_wins",wins).putInt("bg_level",nextLevel.coerceAtMost(8))
+                        .putString("bg_last_result_period",period).apply()
+                    send(if(win) "✅ RESULT: WIN" else "❌ RESULT: LOSS",
+                        "Prediction: $pick\nActual Result: $result\nPeriod: $period\nLevel: $currentLevel\n" +
+                        (if (win) "Next Level: 1" else if (currentLevel < 8) "Next Level: $nextLevel" else "Level 8 limit reached") +
+                        "\nSession Wins: $wins/5")
+                    if (wins >= 5 || (!win && currentLevel >= 8)) {
                         prefs.edit().putBoolean("bg_stopped",true).apply()
-                        send("सेशन समाप्त", if(wins >= 5) "5 WIN पूरे हुए। अगला निर्धारित सेशन आने तक मॉनिटर रुकेगा।" else "Level 8 के बाद भी LOSS आया; सेशन सुरक्षा के लिए रोक दिया गया।")
+                        send("सेशन समाप्त", if(wins >= 5) "5 WIN पूरे हुए। अगला निर्धारित सेशन आने तक मॉनिटर रुकेगा।" else "Level 8 पर LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
                         return
                     }
                 }
             }
             if (prefs.getString("bg_pending_period","") == period) return
-            val n = minOf(rows.length(),10)
-            var big=0; var small=0
-            for(i in 0 until n) {
-                val s=rows.getJSONObject(i).optString("size").uppercase(Locale.ROOT)
-                if(s=="BIG") big++ else if(s=="SMALL") small++
+            val history = (0 until minOf(rows.length(),10)).map {
+                rows.getJSONObject(it).optString("size").uppercase(Locale.ROOT)
+            }.filter { it == "BIG" || it == "SMALL" }
+            if (history.size < 3) return
+            val tail = history.take(3)
+            val pick = when {
+                tail[0] == tail[1] && tail[1] == tail[2] -> if (tail[2] == "BIG") "SMALL" else "BIG"
+                tail[0] == tail[2] && tail[0] != tail[1] -> if (tail[2] == "BIG") "SMALL" else "BIG"
+                else -> if (tail.last() == "BIG") "SMALL" else "BIG"
             }
-            val pick = if(big>small) "BIG" else if(small>big) "SMALL" else result
             val level=prefs.getInt("bg_level",1).coerceIn(1,8)
             prefs.edit().putString("bg_pending_period",period).putString("bg_pending_pick",pick).apply()
-            send("🎯 PREDICTION", "गेम: $mode\nअगले रिजल्ट के लिए अनुमान: $pick\nआधार Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।")
+            send("🎯 PREDICTION: $pick", "गेम: $mode\nPrediction: $pick\nResult आने वाला Period: अगला\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।")
             lastPoll=now
         } catch (e: Exception) { android.util.Log.e("BackgroundMonitor","parse",e) }
     }
