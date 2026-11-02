@@ -125,7 +125,17 @@ class BackgroundMonitorService : Service() {
             prefs.edit().putString("bg_predictions_json",predictions.toString())
                 .putInt("bg_wins",wins).putInt("bg_level",level).commit()
 
-            if (wins >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }
+            if (wins >= 5) {
+                val promoKey = "bg_promo_sent_" + sessionKey
+                if (!prefs.getBoolean(promoKey, false)) {
+                    val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
+                    val promo = "5 WINS COMPLETED!\\n\\nANNU KUMAR TEAM updates\\nRegular session updates\\nBIG / SMALL prediction updates\\nWIN / LOSS status updates\\nLevel 1-8 information\\nCommunity updates\\n\\nJoin: " + link + "\\n" + link + "\\n" + link
+                    prefs.edit().putBoolean(promoKey, true).commit()
+                    send("ANNU KUMAR TEAM", promo)
+                }
+                updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार")
+                return
+            }
             if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
             if (level >= 8 && resolved.any { it.third == "LOSS" }) {
                 val lastLoss = resolved.lastOrNull { it.third == "LOSS" }
