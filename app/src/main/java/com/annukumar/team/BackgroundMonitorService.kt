@@ -58,6 +58,10 @@ class BackgroundMonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_HISTORY_UPDATE) {
+            val snapshot = intent.getStringExtra(EXTRA_HISTORY_JSON)
+            if (!snapshot.isNullOrBlank()) process(snapshot)
+        }
         return START_STICKY
     }
 
@@ -204,6 +208,8 @@ class BackgroundMonitorService : Service() {
     override fun onBind(intent:Intent?)=null
     companion object {
         const val ACTION_STOP="com.annukumar.team.STOP_MONITOR"
+        const val ACTION_HISTORY_UPDATE="com.annukumar.team.HISTORY_UPDATE"
+        const val EXTRA_HISTORY_JSON="history_json"
         private const val CHANNEL="annu_background_monitor"
         fun start(context:Context) {
             val i=Intent(context,BackgroundMonitorService::class.java)
