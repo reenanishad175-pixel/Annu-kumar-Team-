@@ -356,14 +356,18 @@ class MainActivity : Activity() {
 
     companion object {
         private const val HISTORY_READER_JS = """(function () {
-          var found = [], seen = Object.create(null), docs = [];\n          var visibleText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();\n          var route = (location.href || '').toLowerCase();\n          var bingoVisible = /bingo/.test(route) || /bingo/.test(visibleText);\n          if (!bingoVisible) return JSON.stringify('WAIT_BINGO');
+          var found = [], seen = Object.create(null), docs = [];
+          var visibleText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
+          var route = (location.href || '').toLowerCase();
+          var bingoVisible = /bingo/.test(route) || /bingo/.test(visibleText);
+          if (!bingoVisible) return JSON.stringify('WAIT_BINGO');
           function visible(el) {
             if (!el || !el.getClientRects || !el.getClientRects().length) return false;
             var s = window.getComputedStyle(el);
             return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
           }
           function textOf(el) {
-            return (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+            return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           }
           function add(period, size) {
             if (!seen[period] && (size === 'BIG' || size === 'SMALL')) {
@@ -374,58 +378,48 @@ class MainActivity : Activity() {
           function parseContainer(el, period) {
             var txt = textOf(el);
             if (!txt || txt.length > 420) return;
-            var sizeMatch = txt.match(/\\b(BIG|SMALL)\\b/i);
+            var sizeMatch = txt.match(/\b(BIG|SMALL)\b/i);
             if (sizeMatch) {
               add(period, sizeMatch[1].toUpperCase());
               return;
             }
-            var digitMatch = txt.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
+            var digitMatch = txt.match(/(?:^|\s)([0-9])(?:\s|$)/);
             if (digitMatch) add(period, Number(digitMatch[1]) >= 5 ? 'BIG' : 'SMALL');
           }
           function scanRoot(root) {
             if (!root || docs.indexOf(root) >= 0) return;
             docs.push(root);
-            // Native tables and ARIA grids/rows.
             root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function (row) {
               if (!visible(row)) return;
               var txt = textOf(row);
-              var p = txt.match(/\\b[0-9]{8,24}\\b/);
+              var p = txt.match(/\b[0-9]{8,24}\b/);
               if (p) parseContainer(row, p[0]);
             });
-            // Mobile sites often render each result as a card, not a table.
             root.querySelectorAll('body *').forEach(function (el) {
               if (!visible(el)) return;
-              var direct = Array.from(el.childNodes || []).filter(function(n){return n.nodeType===3;})
-                .map(function(n){return n.nodeValue || '';}).join(' ').trim();
               var own = textOf(el);
               if (!own || own.length > 420) return;
-              var pm = own.match(/\\b[0-9]{8,24}\\b/);
+              var pm = own.match(/\b[0-9]{8,24}\b/);
               if (!pm) return;
-              // Prefer the smallest ancestor containing both this period and its outcome.
               var node = el;
-              for (var depth=0; node && depth<5; depth++, node=node.parentElement) {
+              for (var depth = 0; node && depth < 5; depth++, node = node.parentElement) {
                 var block = textOf(node);
                 if (block.length > 420) break;
-                if (new RegExp('\\\\b' + pm[0] + '\\\\b').test(block) &&
-                    /\\b(BIG|SMALL)\\b/i.test(block)) {
+                if (new RegExp('\\b' + pm[0] + '\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
                   parseContainer(node, pm[0]);
                   break;
                 }
               }
-              if (direct && /\\b(BIG|SMALL)\\b/i.test(own)) parseContainer(el, pm[0]);
             });
-            // Include open shadow roots used by some modern game interfaces.
-            root.querySelectorAll('*').forEach(function(el) {
+            root.querySelectorAll('*').forEach(function (el) {
               if (el.shadowRoot) scanRoot(el.shadowRoot);
             });
-            // Same-origin frames only; browser security blocks cross-origin access.
-            root.querySelectorAll('iframe').forEach(function(frame) {
+            root.querySelectorAll('iframe').forEach(function (frame) {
               try { if (frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
             });
           }
           try { scanRoot(document); } catch (_) {}
-          // DOM order is the visible page order. Do not paginate or fetch hidden pages.
-          return JSON.stringify({bingo:true, rows:found.slice(0, 10)});
+          return JSON.stringify({bingo: true, rows: found.slice(0, 10)});
         })()"""
     }
 }
