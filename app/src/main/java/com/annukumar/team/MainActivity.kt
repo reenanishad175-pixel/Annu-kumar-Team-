@@ -269,7 +269,7 @@ class MainActivity : Activity() {
                     "📊 <b>LAST 10 RESULTS</b>\n" +
                     "🟢 BIG: <b>$big</b>     🔴 SMALL: <b>$small</b>\n" +
                     "📈 <b>Trend:</b> $trend\n" +
-                    "🔥 <b>Current Streak:</b> $latest × $streak\n" +
+                    "📶 <b>Current Level:</b> ${prefs.getInt("bg_level", 1).coerceIn(1, 8)}\n" +
                     "━━━━━━━━━━━━━━━━━━\n" +
                     "💡 <b>PATTERN ESTIMATE</b>\n" +
                     "⭐ <b>$pick</b>\n" +
