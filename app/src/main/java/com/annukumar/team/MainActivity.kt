@@ -376,10 +376,10 @@ class MainActivity : Activity() {
 
           // Detect the selected duration, not merely the presence of the word Bingo.
           var modes = [
-            {name:'Bingo 30 Seconds', re:/^bingo\s*(30\s*(seconds?|secs?|sec|s))$/i},
-            {name:'Bingo 1 Minute', re:/^bingo\s*(1\s*(minute|min|m))$/i},
-            {name:'Bingo 3 Minutes', re:/^bingo\s*(3\s*(minutes|min|m))$/i},
-            {name:'Bingo 5 Minutes', re:/^bingo\s*(5\s*(minutes|min|m))$/i}
+            {name:'Bingo 30 Seconds', re:/^(?:bingo\s*)?(30\s*(seconds?|secs?|sec|s))$/i},
+            {name:'Bingo 1 Minute', re:/^(?:bingo\s*)?(1\s*(minute|min|m))$/i},
+            {name:'Bingo 3 Minutes', re:/^(?:bingo\s*)?(3\s*(minutes|min|m))$/i},
+            {name:'Bingo 5 Minutes', re:/^(?:bingo\s*)?(5\s*(minutes|min|m))$/i}
           ];
           var selected = null, scope = null;
           var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
@@ -422,8 +422,6 @@ class MainActivity : Activity() {
             if (!txt || txt.length > 420) return;
             var sizeMatch = txt.match(/\b(BIG|SMALL)\b/i);
             if (sizeMatch) { add(period, sizeMatch[1].toUpperCase()); return; }
-            var digitMatch = txt.match(/(?:^|\s)([0-9])(?:\s|$)/);
-            if (digitMatch) add(period, Number(digitMatch[1]) >= 5 ? 'BIG' : 'SMALL');
           }
           function scanRoot(root) {
             if (!root || docs.indexOf(root) >= 0) return;
@@ -442,7 +440,7 @@ class MainActivity : Activity() {
               for (var node=el, depth=0; node && depth<5; depth++, node=node.parentElement) {
                 var block = textOf(node);
                 if (block.length > 420) break;
-                if (new RegExp('\b'+pm[0]+'\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
+                if (new RegExp('\\b'+pm[0]+'\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
                   parseContainer(node, pm[0]); break;
                 }
               }
