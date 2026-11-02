@@ -75,7 +75,7 @@ class MainActivity : Activity() {
         setContentView(makeUi())
         renderHistory()
         predictionView.text = "Session WIN: $sessionWins/5 • Level: $level • Consecutive LOSS: $consecutiveLosses/8"
-        updateAccount()
+        predictionView.text = "Session WIN: $sessionWins/5 • Level: $level • Consecutive LOSS: $consecutiveLosses/8"
         SessionScheduler.scheduleAll(this)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 701)
@@ -94,96 +94,190 @@ class MainActivity : Activity() {
         setOnClickListener { f() }
     }
 
+    private lateinit var loginPanel: LinearLayout
+    private lateinit var dashboardPanel: LinearLayout
+    private lateinit var settingsPanel: LinearLayout
+    private lateinit var appPhone: EditText
+
     private fun makeUi(): View {
+        val navy = Color.rgb(10, 16, 30)
+        val panel = Color.rgb(20, 29, 48)
+        val accent = Color.rgb(38, 211, 174)
+        val muted = Color.rgb(158, 174, 196)
+        fun heading(s: String, size: Float = 18f) = TextView(this).apply {
+            text = s; textSize = size; setTextColor(Color.WHITE)
+            setPadding(0, dp(12), 0, dp(5))
+        }
+        fun note(s: String) = TextView(this).apply {
+            text = s; textSize = 13f; setTextColor(muted)
+            setPadding(0, dp(3), 0, dp(8))
+        }
+        fun card() = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            setBackgroundColor(panel)
+        }
+        fun action(s: String, f: () -> Unit) = Button(this).apply {
+            text = s; isAllCaps = false; textSize = 14f
+            setTextColor(navy); setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent))
+            setOnClickListener { f() }
+        }
+        fun field(hintText: String, single: Boolean = true) = EditText(this).apply {
+            hint = hintText; setTextColor(Color.WHITE); setHintTextColor(muted)
+            setSingleLine(single); textSize = 15f
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
+        }
+
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(8))
-            setBackgroundColor(Color.rgb(245, 247, 251))
+            setPadding(dp(14), dp(12), dp(14), dp(10))
+            setBackgroundColor(navy)
         }
         val scroll = ScrollView(this)
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(body)
-        body.addView(text("ANNU KUMAR TEAM", 24f))
-        body.addView(text("WinGo companion • Dashboard + demo tracker"))
-        body.addView(text("Dashboard, Telegram alerts और demo tracking. कोई वास्तविक wager submit नहीं होता।", 12f))
-        account = text("Firebase account: checking…")
-        body.addView(account)
-        phone = EditText(this).apply { hint = "Phone number with country code, e.g. +91"; inputType = 3 }
-        otp = EditText(this).apply { hint = "SMS OTP"; inputType = 2; visibility = View.GONE }
-        body.addView(phone)
-        body.addView(otp)
-        body.addView(btn("Send SMS OTP") { sendOtp() })
-        body.addView(btn("Verify OTP / Login") { verifyOtp() })
-        body.addView(btn("Continue as Guest") { status.text = "Guest mode active." })
-        body.addView(text("BDG WIN", 18f))
-        status = text("Loading BDG WIN…")
-        body.addView(status)
-        body.addView(btn("Reload BDG WIN") { web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!) })
+        val brand = TextView(this).apply {
+            text = "ANNu  /  TEAM"; textSize = 25f; setTextColor(accent)
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        body.addView(brand)
+        body.addView(note("WinGo companion  •  Paper dashboard"))
+
+        loginPanel = card()
+        loginPanel.addView(heading("आपका मोबाइल नंबर", 20f))
+        loginPanel.addView(note("यह ऐप आपके फोन पर लोकल प्रोफाइल बनाएगा। पासवर्ड या अलग अकाउंट की जरूरत नहीं।"))
+        appPhone = field("मोबाइल नंबर, जैसे +91XXXXXXXXXX")
+        appPhone.inputType = 3
+        loginPanel.addView(appPhone)
+        loginPanel.addView(action("आगे बढ़ें") {
+            val number = appPhone.text.toString().trim()
+            if (number.replace(Regex("\\D"), "").length < 10) {
+                status.text = "कृपया सही मोबाइल नंबर डालें।"
+            } else {
+                prefs.edit().putString("app_phone", number).apply()
+                showDashboard()
+            }
+        })
+        body.addView(loginPanel)
+
+        dashboardPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        val welcome = card()
+        welcome.addView(heading("आपका डैशबोर्ड", 21f))
+        account = note("मोबाइल: " + (prefs.getString("app_phone", "") ?: ""))
+        welcome.addView(account)
+        status = note("तैयार है। नीचे से BDG इतिहास पढ़ें या सेटिंग खोलें।")
+        welcome.addView(status)
+        welcome.addView(action("⚙  BOT और ऐप सेटिंग्स") {
+            settingsPanel.visibility = if (settingsPanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        })
+        dashboardPanel.addView(welcome)
+
+        settingsPanel = card().apply { visibility = View.GONE }
+        settingsPanel.addView(heading("Telegram Bot सेटिंग्स"))
+        settingsPanel.addView(note("Bot Token और Chat ID केवल इसी फोन में सेव होंगे। इन्हें किसी से साझा न करें।"))
+        telegramToken = field("Telegram Bot Token")
+        telegramToken.inputType = 129
+        telegramToken.setText(prefs.getString("telegram_bot_token", ""))
+        telegramChatId = field("Telegram Chat ID")
+        telegramChatId.setText(prefs.getString("telegram_chat_id", ""))
+        telegramEnabled = CheckBox(this).apply {
+            text = "Telegram alerts चालू करें"; setTextColor(Color.WHITE)
+            isChecked = prefs.getBoolean("telegram_enabled", false)
+        }
+        settingsPanel.addView(telegramToken)
+        settingsPanel.addView(telegramChatId)
+        settingsPanel.addView(telegramEnabled)
+        settingsPanel.addView(action("सेटिंग सेव करें") { saveTelegramSettings() })
+        settingsPanel.addView(action("टेस्ट मैसेज भेजें") {
+            saveTelegramSettings()
+            sendTelegramMessage("Annu Kumar Team: Telegram test message.")
+        })
+        settingsPanel.addView(action("मोबाइल नंबर बदलें") {
+            prefs.edit().remove("app_phone").apply()
+            dashboardPanel.visibility = View.GONE
+            loginPanel.visibility = View.VISIBLE
+            appPhone.setText("")
+        })
+        dashboardPanel.addView(settingsPanel)
+
+        val siteCard = card()
+        siteCard.addView(heading("BDG WIN"))
+        siteCard.addView(note("वेबसाइट में अपना सामान्य लॉगिन स्वयं करें। यह ऐप कोई wager submit या auto-click नहीं करता।"))
+        siteCard.addView(action("वेबसाइट रीफ्रेश करें") {
+            web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!)
+        })
         web = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    status.text = "Website loaded. Select the game and period on BDG WIN."
+                    status.text = "BDG वेबसाइट खुल गई। WinGo History खोलकर नीचे Read History दबाएँ।"
                     readPage()
                 }
             }
-            layoutParams = LinearLayout.LayoutParams(-1, dp(360))
+            layoutParams = LinearLayout.LayoutParams(-1, dp(330))
+            setBackgroundColor(panel)
         }
-        body.addView(web)
-        body.addView(text("PAGE INFORMATION", 18f))
-        timerView = text("Website timer: Not detected")
-        periodView = text("Period: Not detected")
-        body.addView(timerView)
-        body.addView(periodView)
-        body.addView(text("10-PERIOD PAPER PATTERN CHECK", 18f))
-        body.addView(text("पिछले परिणाम पुराने से नए क्रम में लिखें; उदाहरण: BIG SMALL BIG SMALL. अधिकतम आखिरी 10 परिणाम लिए जाएँगे।", 12f))
-        resultsInput = EditText(this).apply {
-            hint = "BIG, SMALL, BIG, SMALL..."
-            setSingleLine(false)
-            minLines = 2
-        }
-        body.addView(resultsInput)
-        body.addView(btn("ANALYZE PAPER PATTERN") { analyzePaperPattern() })
-        body.addView(text("SESSION TRACKER", 18f))
-        body.addView(text("WIN मिलने पर Level 1 से शुरू होगा। 8 लगातार LOSS या 5 कुल WIN पर session रुकता है।"))
-        body.addView(btn("Mark demo result: WIN") { recordDemoResult(true) })
-        body.addView(btn("Mark demo result: LOSS") { recordDemoResult(false) })
-        predictionView = text("Demo observation: waiting for verified result history", 16f)
-        body.addView(predictionView)
-        body.addView(text("TELEGRAM PREDICTION ALERTS", 18f))
-        body.addView(text("Bot token और Chat ID इस फोन के app-private storage में सेव होंगे; इन्हें किसी के साथ साझा न करें.", 12f))
-        telegramToken = EditText(this).apply {
-            hint = "Telegram Bot Token"
-            inputType = 129
-            setSingleLine(true)
-            setText(prefs.getString("telegram_bot_token", ""))
-        }
-        telegramChatId = EditText(this).apply {
-            hint = "Telegram Chat ID"
-            setSingleLine(true)
-            setText(prefs.getString("telegram_chat_id", ""))
-        }
-        telegramEnabled = CheckBox(this).apply {
-            text = "हर नई Prediction Telegram पर भेजें"
-            isChecked = prefs.getBoolean("telegram_enabled", false)
-            setTextColor(Color.rgb(35, 45, 60))
-        }
-        body.addView(telegramToken)
-        body.addView(telegramChatId)
-        body.addView(telegramEnabled)
-        body.addView(btn("Save Telegram Settings") { saveTelegramSettings() })
-        body.addView(btn("Send Telegram Test Message") { saveTelegramSettings(); sendTelegramMessage("Annu Kumar Team: Telegram test message. Alerts are connected.") })
-        startButton = btn("START PAPER TRACKER") { toggleTracker() }
-        body.addView(startButton)
-        body.addView(btn("Read website now") { readPage() })
-        body.addView(btn("Clear / reset demo session") { history.clear(); lastPeriod = ""; sessionWins = 0; level = 1; consecutiveLosses = 0; sessionEnded = false; persistTrackerState(); renderHistory(); predictionView.text = "Demo session reset." })
-        body.addView(text("PAPER HISTORY", 18f))
-        historyView = text("No paper entries yet.")
-        body.addView(historyView)
+        siteCard.addView(web)
+        dashboardPanel.addView(siteCard)
+
+        val historyCard = card()
+        historyCard.addView(heading("HISTORY READER"))
+        timerView = note("Website timer: Not detected")
+        periodView = note("Period: Not detected")
+        historyCard.addView(timerView)
+        historyCard.addView(periodView)
+        historyCard.addView(action("READ HISTORY") { readPage() })
+        dashboardPanel.addView(historyCard)
+
+        val analyzerCard = card()
+        analyzerCard.addView(heading("PAPER ANALYSIS"))
+        analyzerCard.addView(note("पुराने से नए क्रम में अधिकतम 10 BIG / SMALL परिणाम डालें। यह केवल अवलोकन है, भविष्यवाणी की गारंटी नहीं।"))
+        resultsInput = field("BIG SMALL BIG SMALL ...", false)
+        resultsInput.minLines = 2
+        analyzerCard.addView(resultsInput)
+        analyzerCard.addView(action("ANALYZE") { analyzePaperPattern() })
+        predictionView = note("अभी कोई पेपर विश्लेषण नहीं।")
+        analyzerCard.addView(predictionView)
+        dashboardPanel.addView(analyzerCard)
+
+        val trackerCard = card()
+        trackerCard.addView(heading("DEMO TRACKER"))
+        trackerCard.addView(note("केवल रिकॉर्ड रखने के लिए — वास्तविक पैसे या wager नहीं।"))
+        trackerCard.addView(action("DEMO WIN दर्ज करें") { recordDemoResult(true) })
+        trackerCard.addView(action("DEMO LOSS दर्ज करें") { recordDemoResult(false) })
+        startButton = action("पेपर ट्रैकर शुरू करें") { toggleTracker() }
+        trackerCard.addView(startButton)
+        trackerCard.addView(action("डेमो सेशन रीसेट करें") {
+            history.clear(); lastPeriod = ""; sessionWins = 0; level = 1
+            consecutiveLosses = 0; sessionEnded = false
+            persistTrackerState(); renderHistory()
+            predictionView.text = "Demo session reset."
+        })
+        historyView = note("अभी कोई रिकॉर्ड नहीं।")
+        trackerCard.addView(heading("हाल की गतिविधि", 16f))
+        trackerCard.addView(historyView)
+        dashboardPanel.addView(trackerCard)
+        body.addView(dashboardPanel)
+
         outer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val savedPhone = prefs.getString("app_phone", "") ?: ""
+        if (savedPhone.isNotBlank()) showDashboard()
         return outer
+    }
+
+    private fun showDashboard() {
+        loginPanel.visibility = View.GONE
+        dashboardPanel.visibility = View.VISIBLE
+        account.text = "मोबाइल: " + (prefs.getString("app_phone", "") ?: "")
+        if (!::web.isInitialized || web.url == null) {
+            if (::web.isInitialized) web.loadUrl(prefs.getString("bdg_url", "https://bdgwin68.com/#/login")!!)
+        }
     }
 
     private fun updateAccount() {
