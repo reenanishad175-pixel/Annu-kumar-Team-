@@ -22,12 +22,24 @@ import kotlin.concurrent.thread
 class BackgroundMonitorService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("paper", MODE_PRIVATE) }
+    private var cpuWakeLock: PowerManager.WakeLock? = null
     @Volatile private var predictionSendInFlight = false
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
         startForeground(7101, notification("बैकग्राउंड मॉनिटरिंग चालू है"))
+        // Keep the CPU awake while the user-enabled foreground monitor is active.
+        // This reduces Doze-related gaps but cannot force WebView JavaScript to run.\n        try {
+            val power = getSystemService(POWER_SERVICE) as PowerManager
+            cpuWakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AnnuKumarTeam:HistoryMonitor").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BackgroundMonitor", "Could not acquire partial wake lock", e)
+            updateMonitorDiagnostic("Battery keep-awake unavailable: " + (e.localizedMessage ?: "permission/system error"))
+        }
         // History is read only by MainActivity's selected, authenticated WebView.
         // A second service WebView starts on the login route and reports WAIT_BINGO;
         // it cannot know which game/tab the user selected. The service only processes
@@ -212,6 +224,12 @@ class BackgroundMonitorService : Service() {
     }
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
+        try {
+            cpuWakeLock?.let { if (it.isHeld) it.release() }
+        } catch (e: Exception) {
+            android.util.Log.w("BackgroundMonitor", "Wake lock release failed", e)
+        }
+        cpuWakeLock = null
         super.onDestroy()
     }
     override fun onBind(intent:Intent?)=null
