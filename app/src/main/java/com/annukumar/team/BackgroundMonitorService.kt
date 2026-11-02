@@ -97,7 +97,8 @@ class BackgroundMonitorService : Service() {
                     val wins = prefs.getInt("bg_wins",0) + if (win) 1 else 0
                     val nextLevel = if (win) 1 else currentLevel + 1
                     ed.putInt("bg_wins",wins).putInt("bg_level",nextLevel.coerceAtMost(8))
-                        .putString("bg_last_result_period",period).apply()
+                        .putString("bg_last_result_period",period)
+                        .putString("bg_last_outcome", if (win) "WIN" else "LOSS").apply()
                     send(if(win) "✅ RESULT: WIN" else "❌ RESULT: LOSS",
                         "Prediction: $pick\nActual Result: $result\nPeriod: $period\nLevel: $currentLevel\n" +
                         (if (win) "Next Level: 1" else if (currentLevel < 8) "Next Level: $nextLevel" else "Level 8 limit reached") +
