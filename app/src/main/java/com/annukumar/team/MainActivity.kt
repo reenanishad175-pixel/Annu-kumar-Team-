@@ -368,29 +368,40 @@ class MainActivity : Activity() {
 
     companion object {
         private const val HISTORY_READER_JS = """(function() {
-          var found = [];
-          var seen = {};
-          var nodes = Array.from(document.querySelectorAll('body *'));
-          // BDG's history may be rendered as div/li cards rather than table <tr> rows.
-          // Inspect compact visible text containers and deduplicate by period.
-          nodes.forEach(function(el) {
-            if (!el || !el.getClientRects || !el.getClientRects().length) return;
-            var text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
-            if (!text || text.length > 700) return;
-            var periods = text.match(/\\b[0-9]{12,24}\\b/g);
-            if (!periods || !periods.length) return;
-            var sizeMatch = text.match(/\\b(BIG|SMALL)\\b/i);
-            var digitMatch = text.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
-            if (!sizeMatch && !digitMatch) return;
-            var period = periods[0];
-            if (seen[period]) return;
-            var size = sizeMatch ? sizeMatch[1].toUpperCase() :
-              (parseInt(digitMatch[1], 10) >= 5 ? 'BIG' : 'SMALL');
-            found.push({period: period, size: size, sample: text.slice(0, 180)});
-            seen[period] = true;
-          });
-          // Keep likely history entries, not huge page wrappers.
-          return JSON.stringify(found.slice(0, 250));
+          var out = [], seen = {};
+          function scan(doc) {
+            if (!doc) return;
+            // First use real table rows: period, number and BIG/SMALL columns.
+            Array.from(doc.querySelectorAll('tr')).forEach(function(tr) {
+              var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td) {
+                return (td.innerText || td.textContent || '').replace(/\\s+/g, ' ').trim();
+              });
+              var period = cells.find(function(x) { return /^[0-9]{12,24}$/.test(x); });
+              if (!period) return;
+              var size = cells.find(function(x) { return /\\b(big|small)\\b/i.test(x); });
+              var digitCell = cells.find(function(x) { return /^[0-9]$/.test(x); });
+              if (!size && digitCell) size = parseInt(digitCell,10) >= 5 ? 'BIG' : 'SMALL';
+              if (size) add(period, /big/i.test(size) ? 'BIG' : 'SMALL');
+            });
+            // Also inspect compact card/list containers used by some mobile layouts.
+            Array.from(doc.querySelectorAll('body *')).forEach(function(el) {
+              if (!el.getClientRects || !el.getClientRects().length) return;
+              var text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
+              if (!text || text.length > 260) return;
+              var pm = text.match(/\\b[0-9]{12,24}\\b/);
+              var sm = text.match(/\\b(BIG|SMALL)\\b/i);
+              if (pm && sm) add(pm[0], sm[1].toUpperCase());
+            });
+            // Same-origin frames are readable; cross-origin frames are safely skipped.
+            Array.from(doc.querySelectorAll('iframe')).forEach(function(frame) {
+              try { scan(frame.contentDocument); } catch (_) {}
+            });
+          }
+          function add(period, size) {
+            if (!seen[period]) { seen[period] = true; out.push({period:period, size:size}); }
+          }
+          try { scan(document); } catch (_) {}
+          return JSON.stringify(out.slice(0,250));
         })()"""
     }
 }
