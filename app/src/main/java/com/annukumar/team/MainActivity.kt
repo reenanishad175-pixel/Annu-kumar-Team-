@@ -271,9 +271,9 @@ class MainActivity : Activity() {
                     "📈 <b>Trend:</b> $trend\n" +
                     "📶 <b>Current Level:</b> ${prefs.getInt("bg_level", 1).coerceIn(1, 8)}\n" +
                     "━━━━━━━━━━━━━━━━━━\n" +
-                    "💡 <b>PATTERN ESTIMATE</b>\n" +
+                    "💡 <b>PREDICTION</b>\n" +
                     "⭐ <b>$pick</b>\n" +
-                    "📶 <b>Strength:</b> $confidence\n" +
+                    "📶 <b>Strength:</b> $confidence\n" +                    "📋 <b>Last Result:</b> ${prefs.getString("bg_last_outcome", "—")}\n" +
                     "━━━━━━━━━━━━━━━━━━\n" +
                     "⚠️ <i>Pattern-based estimate only. Not guaranteed; play responsibly.</i>"
                 sendTelegram(message)
