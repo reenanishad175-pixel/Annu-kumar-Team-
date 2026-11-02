@@ -86,7 +86,7 @@ class BackgroundMonitorService : Service() {
             val cal = Calendar.getInstance()
             val hour = cal.get(Calendar.HOUR_OF_DAY)
             val sessions = intArrayOf(10,15,18,21)
-            val activeHour = sessions.lastOrNull { it <= hour } ?: return
+            val activeHour = sessions.lastOrNull { it <= hour } ?: run { updateMonitorDiagnostic("अगला सेशन 10:00 बजे शुरू होगा"); return }
             val date = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
             val sessionKey = "$date-$activeHour"
             if (prefs.getString("bg_session","") != sessionKey) {
@@ -95,7 +95,7 @@ class BackgroundMonitorService : Service() {
                     .putString("bg_pending_period","").putString("bg_pending_pick","")
                     .putString("bg_last_result_period","").putString("bg_last_outcome","—").apply()
             }
-            if (prefs.getInt("bg_wins",0) >= 5 || prefs.getBoolean("bg_stopped",false)) return
+            if (prefs.getInt("bg_wins",0) >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }\n            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
 
             // Resolve only the exact period that was saved as the prediction target.
             val pendingTarget = prefs.getString("bg_pending_period","").orEmpty()
@@ -131,7 +131,7 @@ class BackgroundMonitorService : Service() {
             }
 
             // Never create another prediction while the previous target is unresolved.
-            if (prefs.getString("bg_pending_period","").orEmpty().isNotBlank()) return
+            if (prefs.getString("bg_pending_period","").orEmpty().isNotBlank()) { updateMonitorDiagnostic("Prediction भेजी गई • Period " + prefs.getString("bg_pending_period", "") + " के रिजल्ट का इंतज़ार"); return }
             val history = orderedRows.take(10).map { (_, row) ->
                 row.optString("size").uppercase(Locale.ROOT)
             }
@@ -153,7 +153,7 @@ class BackgroundMonitorService : Service() {
                 java.math.BigInteger(period).add(java.math.BigInteger.ONE).toString()
             } catch (_: Exception) { return }
             val level = prefs.getInt("bg_level",1).coerceIn(1,8)
-            if (predictionSendInFlight) return
+            if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             updateMonitorDiagnostic("Prediction ready: " + targetPeriod + " • Telegram sending…")
             val message = "🎯 PREDICTION: $pick\nगेम: $mode\nPrediction: $pick\nTarget Period: $targetPeriod\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
