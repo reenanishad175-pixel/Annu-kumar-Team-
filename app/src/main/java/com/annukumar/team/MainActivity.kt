@@ -258,16 +258,22 @@ class MainActivity : Activity() {
             val tokenConfigured = prefs.getString("telegram_bot_token", "").orEmpty().isNotBlank()
             val chatConfigured = prefs.getString("telegram_chat_id", "").orEmpty().isNotBlank()
             if (tokenConfigured && chatConfigured) {
-                val message = "ANNU / TEAM • LIVE PATTERN UPDATE\\n" +
-                    "Game: $mode\\n" +
-                    "Latest period: ${rows.first().first} ($latest)\\n" +
-                    "Pattern sample: ${rows.size} results\\n" +
-                    "BIG: $big | SMALL: $small\\n" +
-                    "Trend: $trend\\n" +
-                    "Current streak: $latest × $streak\\n" +
-                    "Pattern estimate: $pick\\n" +
-                    "Estimate strength: $confidence\\n" +
-                    "Note: Pattern-based estimate only; not a guaranteed result."
+                val message = "🎯 <b>ANNU / TEAM — LIVE UPDATE</b>\n" +
+                    "━━━━━━━━━━━━━━━━━━\n" +
+                    "🎮 <b>Game:</b> $mode\n" +
+                    "🆔 <b>Period:</b> <code>${rows.first().first}</code>\n" +
+                    "📌 <b>Latest Result:</b> <b>$latest</b>\n" +
+                    "━━━━━━━━━━━━━━━━━━\n" +
+                    "📊 <b>LAST 10 RESULTS</b>\n" +
+                    "🟢 BIG: <b>$big</b>     🔴 SMALL: <b>$small</b>\n" +
+                    "📈 <b>Trend:</b> $trend\n" +
+                    "🔥 <b>Current Streak:</b> $latest × $streak\n" +
+                    "━━━━━━━━━━━━━━━━━━\n" +
+                    "💡 <b>PATTERN ESTIMATE</b>\n" +
+                    "⭐ <b>$pick</b>\n" +
+                    "📶 <b>Strength:</b> $confidence\n" +
+                    "━━━━━━━━━━━━━━━━━━\n" +
+                    "⚠️ <i>Pattern-based estimate only. Not guaranteed; play responsibly.</i>"
                 sendTelegram(message)
             }
         }
@@ -426,7 +432,7 @@ class MainActivity : Activity() {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
                 }
-                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&text=" + URLEncoder.encode(message, "UTF-8")
+                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&parse_mode=HTML&text=" + URLEncoder.encode(message, "UTF-8")
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
                 val response = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
