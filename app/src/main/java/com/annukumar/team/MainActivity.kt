@@ -361,7 +361,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val HISTORY_READER_JS = """(function () {
-          var found = [], seen = Object.create(null), docs = [];
+          var found = [], seen = Object.create(null), roots = [];
           function visible(el) {
             if (!el || !el.getClientRects || !el.getClientRects().length) return false;
             var s = window.getComputedStyle(el);
@@ -370,84 +370,102 @@ class MainActivity : Activity() {
           function textOf(el) {
             return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           }
-          var pageText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
+          var bodyText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
           var route = (location.href || '').toLowerCase();
-          if (!/bingo/.test(route) && !/bingo/.test(pageText)) return JSON.stringify('WAIT_BINGO');
+          if (!/bingo/.test(route) && !/\bbingo\b/.test(bodyText)) return JSON.stringify('WAIT_BINGO');
 
-          // Detect the selected duration, not merely the presence of the word Bingo.
           var modes = [
-            {name:'Bingo 30 Seconds', re:/^(?:bingo\s*)?(30\s*(seconds?|secs?|sec|s))$/i},
-            {name:'Bingo 1 Minute', re:/^(?:bingo\s*)?(1\s*(minute|min|m))$/i},
-            {name:'Bingo 3 Minutes', re:/^(?:bingo\s*)?(3\s*(minutes|min|m))$/i},
-            {name:'Bingo 5 Minutes', re:/^(?:bingo\s*)?(5\s*(minutes|min|m))$/i}
+            {name:'Bingo 30 Seconds', re:/^(?:bingo\s*)?30\s*(?:seconds?|secs?|sec|s)$/i},
+            {name:'Bingo 1 Minute', re:/^(?:bingo\s*)?1\s*(?:minutes?|mins?|min|m)$/i},
+            {name:'Bingo 3 Minutes', re:/^(?:bingo\s*)?3\s*(?:minutes?|mins?|min|m)$/i},
+            {name:'Bingo 5 Minutes', re:/^(?:bingo\s*)?5\s*(?:minutes?|mins?|min|m)$/i}
           ];
-          var selected = null, scope = null;
+          function modeFor(el) {
+            var t = textOf(el).replace(/\s+/g, ' ').trim();
+            if (t.length > 40) return null;
+            return modes.find(function(m){ return m.re.test(t); }) || null;
+          }
+          function activeElement(el) {
+            var cls = String(el.className && el.className.baseVal || el.className || '').toLowerCase();
+            var parent = el.parentElement;
+            var pcls = parent ? String(parent.className && parent.className.baseVal || parent.className || '').toLowerCase() : '';
+            return el.getAttribute('aria-selected') === 'true' ||
+              el.getAttribute('aria-pressed') === 'true' ||
+              el.getAttribute('data-state') === 'active' ||
+              /(^|[\s_-])(active|selected|current|is-active|tab-active)([\s_-]|$)/.test(cls) ||
+              /(^|[\s_-])(active|selected|current|is-active|tab-active)([\s_-]|$)/.test(pcls);
+          }
           var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
+          var selected = null, selectedEl = null;
           for (var i=0; i<candidates.length; i++) {
             var el = candidates[i];
             if (!visible(el)) continue;
-            var label = textOf(el).replace(/\s+/g, ' ').trim();
-            if (label.length > 32) continue;
-            var mode = modes.find(function(m){ return m.re.test(label); });
-            if (!mode) continue;
-            var cls = String(el.className && el.className.baseVal || el.className || '').toLowerCase();
-            var active = el.getAttribute('aria-selected') === 'true' ||
-              el.getAttribute('aria-pressed') === 'true' ||
-              el.getAttribute('data-state') === 'active' ||
-              /(^|\s)(active|selected|current|is-active|tab-active)(\s|$)/.test(cls);
-            if (!active && el.parentElement) {
-              var pc = String(el.parentElement.className && el.parentElement.className.baseVal || el.parentElement.className || '').toLowerCase();
-              active = /(^|\s)(active|selected|current|is-active|tab-active)(\s|$)/.test(pc);
-            }
-            if (active) {
-              selected = mode.name;
-              var controls = el.getAttribute('aria-controls');
-              var panel = controls ? document.getElementById(controls) : null;
-              if (!panel && el.closest) panel = el.closest('[role="tabpanel"]');
-              if (panel && visible(panel)) scope = panel;
-              break;
+            var mode = modeFor(el);
+            if (mode && activeElement(el)) {
+              selected = mode.name; selectedEl = el; break;
             }
           }
           if (!selected) return JSON.stringify('WAIT_MODE');
+
+          function hasHistoryRows(root) {
+            if (!root || !root.querySelectorAll) return false;
+            var nodes = root.querySelectorAll('tr,[role="row"],article,[class*="record"],[class*="item"]');
+            for (var i=0; i<nodes.length; i++) {
+              var el = nodes[i];
+              if (!visible(el)) continue;
+              var t = textOf(el);
+              if (t.length <= 420 && /\b[0-9]{8,24}\b/.test(t) && /\b(BIG|SMALL)\b/i.test(t)) return true;
+            }
+            return false;
+          }
+          function findPanel(tab) {
+            var controls = tab.getAttribute('aria-controls');
+            if (controls) {
+              var byId = document.getElementById(controls);
+              if (byId && visible(byId)) return byId;
+            }
+            var rolePanel = tab.closest && tab.closest('[role="tabpanel"]');
+            if (rolePanel && visible(rolePanel)) return rolePanel;
+
+            // BDG may render tabs without ARIA panel links. Find a sibling content
+            // region of the tab strip, but accept it only when it contains result rows.
+            var tabGroup = tab.closest && (tab.closest('[role="tablist"]') || tab.parentElement);
+            for (var ancestor = tabGroup, depth = 0; ancestor && depth < 5; depth++, ancestor = ancestor.parentElement) {
+              var children = Array.from(ancestor.children || []);
+              for (var j=0; j<children.length; j++) {
+                var child = children[j];
+                if (child === tabGroup || child.contains(tabGroup) || !visible(child)) continue;
+                if (hasHistoryRows(child)) return child;
+              }
+            }
+            return null;
+          }
+          var scope = findPanel(selectedEl);
           if (!scope) return JSON.stringify('WAIT_PANEL');
 
-          function add(period, size) {
-            if (!seen[period] && (size === 'BIG' || size === 'SMALL')) {
+          function addRow(el) {
+            if (!visible(el)) return;
+            var txt = textOf(el);
+            if (!txt || txt.length > 420) return;
+            var periods = txt.match(/\b[0-9]{8,24}\b/g) || [];
+            var sizes = txt.match(/\b(BIG|SMALL)\b/ig) || [];
+            // A single self-contained record only: never borrow a result from an ancestor.
+            if (periods.length !== 1 || sizes.length !== 1) return;
+            var period = periods[0], size = sizes[0].toUpperCase();
+            if (!seen[period]) {
               seen[period] = true;
               found.push({period:period, size:size});
             }
           }
-          function parseContainer(el, period) {
-            var txt = textOf(el);
-            if (!txt || txt.length > 420) return;
-            var sizeMatch = txt.match(/\b(BIG|SMALL)\b/i);
-            if (sizeMatch) { add(period, sizeMatch[1].toUpperCase()); return; }
-          }
           function scanRoot(root) {
-            if (!root || docs.indexOf(root) >= 0) return;
-            docs.push(root);
-            root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function(row) {
-              if (!visible(row)) return;
-              var p = textOf(row).match(/\b[0-9]{8,24}\b/);
-              if (p) parseContainer(row, p[0]);
+            if (!root || roots.indexOf(root) >= 0 || !root.querySelectorAll) return;
+            roots.push(root);
+            root.querySelectorAll('tr,[role="row"],article,[class*="record"],[class*="item"]').forEach(addRow);
+            root.querySelectorAll('*').forEach(function(el) {
+              if (el.shadowRoot) scanRoot(el.shadowRoot);
             });
-            root.querySelectorAll('tr,[role="row"],[role="gridcell"],article,[class*="record"],[class*="item"]').forEach(function(el) {
-              if (!visible(el)) return;
-              var own = textOf(el);
-              if (!own || own.length > 420) return;
-              var pm = own.match(/\b[0-9]{8,24}\b/);
-              if (!pm) return;
-              for (var node=el, depth=0; node && depth<5; depth++, node=node.parentElement) {
-                var block = textOf(node);
-                if (block.length > 420) break;
-                if (new RegExp('\\b'+pm[0]+'\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
-                  parseContainer(node, pm[0]); break;
-                }
-              }
-            });
-            root.querySelectorAll('*').forEach(function(el){ if(el.shadowRoot) scanRoot(el.shadowRoot); });
-            root.querySelectorAll('iframe').forEach(function(frame){
-              try { if(frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
+            root.querySelectorAll('iframe').forEach(function(frame) {
+              try { if (frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
             });
           }
           try { scanRoot(scope); } catch (_) {}
