@@ -256,19 +256,20 @@ class MainActivity : Activity() {
     }
 
 
-    // Read history only after the visible page has reached the Bingo screen.
+    // Read only the currently selected Bingo duration tab.
     private fun consumeHistory(raw: String) {
         try {
             val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
             if (decoded == "WAIT_BINGO") {
-                status.text = "पहले BDG में Lottery पर जाएँ, फिर Bingo खोलें • वहीं History पढ़ी जाएगी"
+                status.text = "Lottery खोलकर Bingo चुनें • फिर 30 सेकंड / 1 / 3 / 5 मिनट में से गेम चुनें"
+                return
+            }
+            if (decoded == "WAIT_MODE") {
+                status.text = "Bingo खुला है • 30 सेकंड, 1 मिनट, 3 मिनट या 5 मिनट वाला टैब चुनें"
                 return
             }
             val payload = JSONObject(decoded)
-            if (!payload.optBoolean("bingo", false)) {
-                status.text = "Bingo स्क्रीन खुलने का इंतज़ार…"
-                return
-            }
+            val mode = payload.optString("mode", "Bingo")
             val rows = payload.optJSONArray("rows") ?: JSONArray()
             val pageRows = mutableListOf<Pair<String, String>>()
             for (i in 0 until rows.length()) {
@@ -279,15 +280,15 @@ class MainActivity : Activity() {
                     pageRows.none { it.first == period }) pageRows.add(period to size)
             }
             if (pageRows.isEmpty()) {
-                status.text = "Bingo खुला है • पहले पेज की History दिख रही है, लेकिन Period/Result पढ़ा नहीं जा सका"
+                status.text = "$mode खुला है • इसी टैब की History में पढ़ने योग्य रिजल्ट नहीं मिला"
                 return
             }
             observedRows.clear()
             observedRows.addAll(pageRows.take(10))
             val latest = observedRows.first()
-            status.text = "Bingo History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
+            status.text = "$mode History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
         } catch (_: Exception) {
-            status.text = "Bingo History: स्क्रीन का डेटा अभी पढ़ा नहीं जा सका"
+            status.text = "चुने हुए Bingo टैब की History अभी पढ़ी नहीं जा सकी"
         }
     }
 
@@ -357,10 +358,6 @@ class MainActivity : Activity() {
     companion object {
         private const val HISTORY_READER_JS = """(function () {
           var found = [], seen = Object.create(null), docs = [];
-          var visibleText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
-          var route = (location.href || '').toLowerCase();
-          var bingoVisible = /bingo/.test(route) || /bingo/.test(visibleText);
-          if (!bingoVisible) return JSON.stringify('WAIT_BINGO');
           function visible(el) {
             if (!el || !el.getClientRects || !el.getClientRects().length) return false;
             var s = window.getComputedStyle(el);
@@ -369,57 +366,90 @@ class MainActivity : Activity() {
           function textOf(el) {
             return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
           }
+          var pageText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
+          var route = (location.href || '').toLowerCase();
+          if (!/bingo/.test(route) && !/bingo/.test(pageText)) return JSON.stringify('WAIT_BINGO');
+
+          // Detect the selected duration, not merely the presence of the word Bingo.
+          var modes = [
+            {name:'Bingo 30 Seconds', re:/^bingo\\s*(30\\s*(seconds?|secs?|sec|s))$/i},
+            {name:'Bingo 1 Minute', re:/^bingo\\s*(1\\s*(minute|min|m))$/i},
+            {name:'Bingo 3 Minutes', re:/^bingo\\s*(3\\s*(minutes|min|m))$/i},
+            {name:'Bingo 5 Minutes', re:/^bingo\\s*(5\\s*(minutes|min|m))$/i}
+          ];
+          var selected = null, scope = document;
+          var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
+          for (var i=0; i<candidates.length; i++) {
+            var el = candidates[i];
+            if (!visible(el)) continue;
+            var label = textOf(el).replace(/\\s+/g, ' ').trim();
+            if (label.length > 32) continue;
+            var mode = modes.find(function(m){ return m.re.test(label); });
+            if (!mode) continue;
+            var cls = String(el.className && el.className.baseVal || el.className || '').toLowerCase();
+            var active = el.getAttribute('aria-selected') === 'true' ||
+              el.getAttribute('aria-pressed') === 'true' ||
+              el.getAttribute('data-state') === 'active' ||
+              /(^|\\s)(active|selected|current|is-active|tab-active)(\\s|$)/.test(cls);
+            if (!active && el.parentElement) {
+              var pc = String(el.parentElement.className && el.parentElement.className.baseVal || el.parentElement.className || '').toLowerCase();
+              active = /(^|\\s)(active|selected|current|is-active|tab-active)(\\s|$)/.test(pc);
+            }
+            if (active) {
+              selected = mode.name;
+              var controls = el.getAttribute('aria-controls');
+              if (controls) {
+                var panel = document.getElementById(controls);
+                if (panel && visible(panel)) scope = panel;
+              }
+              break;
+            }
+          }
+          if (!selected) return JSON.stringify('WAIT_MODE');
+
           function add(period, size) {
             if (!seen[period] && (size === 'BIG' || size === 'SMALL')) {
               seen[period] = true;
-              found.push({period: period, size: size});
+              found.push({period:period, size:size});
             }
           }
           function parseContainer(el, period) {
             var txt = textOf(el);
             if (!txt || txt.length > 420) return;
-            var sizeMatch = txt.match(/\b(BIG|SMALL)\b/i);
-            if (sizeMatch) {
-              add(period, sizeMatch[1].toUpperCase());
-              return;
-            }
-            var digitMatch = txt.match(/(?:^|\s)([0-9])(?:\s|$)/);
+            var sizeMatch = txt.match(/\\b(BIG|SMALL)\\b/i);
+            if (sizeMatch) { add(period, sizeMatch[1].toUpperCase()); return; }
+            var digitMatch = txt.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
             if (digitMatch) add(period, Number(digitMatch[1]) >= 5 ? 'BIG' : 'SMALL');
           }
           function scanRoot(root) {
             if (!root || docs.indexOf(root) >= 0) return;
             docs.push(root);
-            root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function (row) {
+            root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function(row) {
               if (!visible(row)) return;
-              var txt = textOf(row);
-              var p = txt.match(/\b[0-9]{8,24}\b/);
+              var p = textOf(row).match(/\\b[0-9]{8,24}\\b/);
               if (p) parseContainer(row, p[0]);
             });
-            root.querySelectorAll('body *').forEach(function (el) {
+            root.querySelectorAll('body *,*').forEach(function(el) {
               if (!visible(el)) return;
               var own = textOf(el);
               if (!own || own.length > 420) return;
-              var pm = own.match(/\b[0-9]{8,24}\b/);
+              var pm = own.match(/\\b[0-9]{8,24}\\b/);
               if (!pm) return;
-              var node = el;
-              for (var depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+              for (var node=el, depth=0; node && depth<5; depth++, node=node.parentElement) {
                 var block = textOf(node);
                 if (block.length > 420) break;
-                if (new RegExp('\\b' + pm[0] + '\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
-                  parseContainer(node, pm[0]);
-                  break;
+                if (new RegExp('\\\\b'+pm[0]+'\\\\b').test(block) && /\\b(BIG|SMALL)\\b/i.test(block)) {
+                  parseContainer(node, pm[0]); break;
                 }
               }
             });
-            root.querySelectorAll('*').forEach(function (el) {
-              if (el.shadowRoot) scanRoot(el.shadowRoot);
-            });
-            root.querySelectorAll('iframe').forEach(function (frame) {
-              try { if (frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
+            root.querySelectorAll('*').forEach(function(el){ if(el.shadowRoot) scanRoot(el.shadowRoot); });
+            root.querySelectorAll('iframe').forEach(function(frame){
+              try { if(frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
             });
           }
-          try { scanRoot(document); } catch (_) {}
-          return JSON.stringify({bingo: true, rows: found.slice(0, 10)});
+          try { scanRoot(scope); } catch (_) {}
+          return JSON.stringify({mode:selected, rows:found.slice(0,10)});
         })()"""
     }
 }
