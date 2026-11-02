@@ -68,10 +68,20 @@ class BackgroundMonitorService : Service() {
             val mode = obj.optString("mode")
             val rows = obj.optJSONArray("rows") ?: return
             if (rows.length() == 0) return
-            val latest = rows.getJSONObject(0)
+            // Period number, not screen position, determines the newest completed result.
+            val orderedRows = (0 until rows.length()).mapNotNull { i ->
+                rows.optJSONObject(i)?.let { row ->
+                    val p = row.optString("period")
+                    val s = row.optString("size").uppercase(Locale.ROOT)
+                    if (p.matches(Regex("[0-9]{8,24}")) && s in listOf("BIG","SMALL")) {
+                        try { java.math.BigInteger(p) to row } catch (_: Exception) { null }
+                    } else null
+                }
+            }.sortedByDescending { it.first }
+            if (orderedRows.isEmpty()) return
+            val latest = orderedRows.first().second
             val period = latest.optString("period")
             val result = latest.optString("size").uppercase(Locale.ROOT)
-            if (!period.matches(Regex("[0-9]{8,24}")) || result !in listOf("BIG","SMALL")) return
             val cal = Calendar.getInstance()
             val hour = cal.get(Calendar.HOUR_OF_DAY)
             val sessions = intArrayOf(10,15,18,21)
@@ -91,8 +101,7 @@ class BackgroundMonitorService : Service() {
             val pendingPick = prefs.getString("bg_pending_pick","").orEmpty()
             if (pendingTarget.isNotBlank() && pendingPick in listOf("BIG","SMALL")) {
                 var actualForTarget: String? = null
-                for (i in 0 until rows.length()) {
-                    val row = rows.optJSONObject(i) ?: continue
+                for ((_, row) in orderedRows) {
                     if (row.optString("period") == pendingTarget) {
                         val size = row.optString("size").uppercase(Locale.ROOT)
                         if (size == "BIG" || size == "SMALL") actualForTarget = size
@@ -122,9 +131,9 @@ class BackgroundMonitorService : Service() {
 
             // Never create another prediction while the previous target is unresolved.
             if (prefs.getString("bg_pending_period","").orEmpty().isNotBlank()) return
-            val history = (0 until minOf(rows.length(),10)).map {
-                rows.getJSONObject(it).optString("size").uppercase(Locale.ROOT)
-            }.filter { it == "BIG" || it == "SMALL" }
+            val history = orderedRows.take(10).map { (_, row) ->
+                row.optString("size").uppercase(Locale.ROOT)
+            }
             if (history.size < 3) return
             val tail = history.take(3)
             val pick = when {
