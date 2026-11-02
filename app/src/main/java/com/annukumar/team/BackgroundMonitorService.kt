@@ -95,7 +95,8 @@ class BackgroundMonitorService : Service() {
                     .putString("bg_pending_period","").putString("bg_pending_pick","")
                     .putString("bg_last_result_period","").putString("bg_last_outcome","—").apply()
             }
-            if (prefs.getInt("bg_wins",0) >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }\n            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
+            if (prefs.getInt("bg_wins",0) >= 5) { updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार"); return }
+            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
 
             // Resolve only the exact period that was saved as the prediction target.
             val pendingTarget = prefs.getString("bg_pending_period","").orEmpty()
