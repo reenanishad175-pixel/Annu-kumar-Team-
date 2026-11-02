@@ -30,7 +30,7 @@ class BackgroundMonitorService : Service() {
             if (ready && isOnline()) web.evaluateJavascript(READER) { raw ->
                 if (raw != null && raw != "null") process(raw)
             }
-            main.postDelayed(this, 8000)
+            main.postDelayed(this, 2500)
         }
     }
 
