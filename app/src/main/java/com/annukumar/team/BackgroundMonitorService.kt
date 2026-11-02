@@ -183,7 +183,7 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Prediction save failed • Telegram नहीं भेजा गया")
                 return
             }
-            val message = "🎯 𝗣𝗥𝗘𝗗𝗜𝗖𝗧𝗜𝗢𝗡\n\n🔥 चयन: $pick\n🎮 गेम: $mode\n🆔 Period: $targetPeriod\n📶 Level: $currentLevel\n🏆 Wins: $wins/5"
+            val message = "🎮 $mode\n🆔 Period: $targetPeriod\n🎯 Prediction: $pick\n📶 Level: $currentLevel\n🏆 Session Wins: $wins/5"
             updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
