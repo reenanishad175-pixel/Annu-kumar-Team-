@@ -67,7 +67,7 @@ class MainActivity : Activity() {
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
-            handler.postDelayed(this, 6000)
+            handler.postDelayed(this, 2500)
         }
     }
 
@@ -79,7 +79,7 @@ class MainActivity : Activity() {
         setContentView(buildScreen())
         showLogin()
         if (savedInstanceState == null) web.loadUrl(bdgUrl)
-        handler.postDelayed(pageMonitor, 6000)
+        handler.postDelayed(pageMonitor, 2500)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
