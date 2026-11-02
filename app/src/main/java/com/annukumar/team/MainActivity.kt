@@ -246,7 +246,10 @@ class MainActivity : Activity() {
             small > big -> "SMALL अधिक: $small बनाम BIG $big"
             else -> "दोनों बराबर: BIG $big / SMALL $small"
         }
+        val latestThree = orderedRows.take(3).map { it.second }
         val pick = when {
+            latestThree.size == 3 && latestThree.all { it == "BIG" } -> "BIG"
+            latestThree.size == 3 && latestThree.all { it == "SMALL" } -> "SMALL"
             big > small -> "BIG"
             small > big -> "SMALL"
             else -> latest
