@@ -474,7 +474,9 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
-        if (::web.isInitialized) web.onPause()
+        // Keep the selected BDG WebView's JavaScript/history polling alive while
+        // the user temporarily backgrounds the app. Explicit WebView.onPause()
+        // pauses JavaScript timers and caused the history hand-off to stop.
         super.onPause()
     }
 
