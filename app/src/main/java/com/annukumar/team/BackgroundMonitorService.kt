@@ -129,9 +129,13 @@ class BackgroundMonitorService : Service() {
                 val promoKey = "bg_promo_sent_" + sessionKey
                 if (!prefs.getBoolean(promoKey, false)) {
                     val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
-                    val promo = "5 WINS COMPLETED!\\n\\nANNU KUMAR TEAM updates\\nRegular session updates\\nBIG / SMALL prediction updates\\nWIN / LOSS status updates\\nLevel 1-8 information\\nCommunity updates\\n\\nJoin: " + link + "\\n" + link + "\\n" + link
-                    prefs.edit().putBoolean(promoKey, true).commit()
-                    send("ANNU KUMAR TEAM", promo)
+                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
+                    SessionScheduler.sendTelegram(this, "ANNU KUMAR TEAM\n" + promo) { ok, detail ->
+                        if (ok) prefs.edit().putBoolean(promoKey, true).commit()
+                        else android.util.Log.e("BackgroundMonitor", "Promo Telegram failed: " + detail)
+                    }
+                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(7102, notification(promo))
                 }
                 updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार")
                 return
