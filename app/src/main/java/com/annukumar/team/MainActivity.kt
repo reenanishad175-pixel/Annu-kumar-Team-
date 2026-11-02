@@ -51,7 +51,6 @@ class MainActivity : Activity() {
     private var pageReady = false
     private val seenPeriods = LinkedHashSet<String>()
     private val observedRows = mutableListOf<Pair<String, String>>()
-    private var lastTelegramPredictionKey: String? = null
 
     private val navy = Color.rgb(9, 15, 29)
     private val panel = Color.rgb(20, 30, 49)
@@ -264,32 +263,8 @@ class MainActivity : Activity() {
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
 
-        val predictionKey = "$mode|$targetPeriod|$pick"
-        if (predictionKey != lastTelegramPredictionKey) {
-            lastTelegramPredictionKey = predictionKey
-            val tokenConfigured = prefs.getString("telegram_bot_token", "").orEmpty().isNotBlank()
-            val chatConfigured = prefs.getString("telegram_chat_id", "").orEmpty().isNotBlank()
-            if (tokenConfigured && chatConfigured) {
-                val message = "🎯 <b>ANNU / TEAM — LIVE UPDATE</b>\n" +
-                    "━━━━━━━━━━━━━━━━━━\n" +
-                    "🎮 <b>Game:</b> $mode\n" +
-                    "🆔 <b>Target Period:</b> <code>$targetPeriod</code>\n" +
-                    "⏮ <b>Previous Period:</b> <code>$latestPeriod</code>\n" +
-                    "📌 <b>Latest Result:</b> <b>$latest</b>\n" +
-                    "━━━━━━━━━━━━━━━━━━\n" +
-                    "📊 <b>LAST 10 RESULTS</b>\n" +
-                    "🟢 BIG: <b>$big</b>     🔴 SMALL: <b>$small</b>\n" +
-                    "📈 <b>Trend:</b> $trend\n" +
-                    "📶 <b>Current Level:</b> ${prefs.getInt("bg_level", 1).coerceIn(1, 8)}\n" +
-                    "━━━━━━━━━━━━━━━━━━\n" +
-                    "💡 <b>PREDICTION</b>\n" +
-                    "⭐ <b>$pick</b>\n" +
-                    "📶 <b>Strength:</b> $confidence\n" +                    "📋 <b>Last Result:</b> ${prefs.getString("bg_last_outcome", "—")}\n" +
-                    "━━━━━━━━━━━━━━━━━━\n" +
-                    "⚠️ <i>Pattern-based estimate only. Not guaranteed; play responsibly.</i>"
-                sendTelegram(message)
-            }
-        }
+        // Telegram predictions/results are owned only by BackgroundMonitorService.
+        // Keep this screen display-only to prevent duplicate messages for one target period.
     }
 
     private fun buildSettings(): ScrollView {
