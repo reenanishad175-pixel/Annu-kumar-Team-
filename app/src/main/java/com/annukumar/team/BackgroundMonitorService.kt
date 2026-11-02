@@ -186,7 +186,7 @@ class BackgroundMonitorService : Service() {
             val previousPeriod = prefs.getString("bg_last_result_period","").orEmpty()
             val previousOutcome = prefs.getString("bg_last_outcome","—").orEmpty()
             val previousLine = if (previousPeriod.isNotBlank()) "पिछला Period: $previousPeriod • Result: $previousOutcome\n" else ""
-            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nTarget Period: $targetPeriod\n$previousLineLevel: $currentLevel\nSession Wins: $wins/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
+            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nTarget Period: $targetPeriod\n${previousLine}Level: $currentLevel\nSession Wins: $wins/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
             updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
