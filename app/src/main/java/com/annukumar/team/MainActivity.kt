@@ -256,50 +256,32 @@ class MainActivity : Activity() {
     }
 
 
-    // Read-only extraction from visible Game History rows; never interacts with wager controls.
+    // Display only results actually found on the first visible Bingo history page.
     private fun consumeHistory(raw: String) {
         try {
             val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
             val rows = JSONArray(decoded)
-            var latestPeriod = ""
-            var latestSize = ""
-            var added = 0
-            // BDG Game History is newest-first; reverse it to keep the sample chronological.
-            for (i in rows.length() - 1 downTo 0) {
+            val pageRows = mutableListOf<Pair<String, String>>()
+            for (i in 0 until rows.length()) {
                 val row = rows.getJSONObject(i)
                 val period = row.optString("period")
                 val size = row.optString("size").uppercase()
-                if (period.matches(Regex("[0-9]{12,24}")) && (size == "BIG" || size == "SMALL")) {
-                    latestPeriod = period
-                    latestSize = size
-                    if (seenPeriods.add(period)) {
-                        observedRows.add(period to size)
-                        added++
-                    }
+                if (period.matches(Regex("[0-9]{8,24}")) && (size == "BIG" || size == "SMALL") &&
+                    pageRows.none { it.first == period }) {
+                    pageRows.add(period to size)
                 }
             }
-            while (observedRows.size > 100) observedRows.removeAt(0)
-            if (latestPeriod.isBlank()) {
-                status.text = "BDG खुला है • Game History table अभी नहीं मिली"
+            if (pageRows.isEmpty()) {
+                status.text = "BDG खुला है • Bingo History के पहले पेज पर पढ़ने योग्य रिजल्ट नहीं मिला"
                 return
             }
-            val tail = observedRows.takeLast(10)
-            val big = tail.count { it.second == "BIG" }
-            val small = tail.size - big
-            val signal = if (tail.size < 5) "SKIP (5 results needed)" else when {
-                big >= 7 -> "BIG (low-confidence pattern)"
-                small >= 7 -> "SMALL (low-confidence pattern)"
-                else -> "SKIP (no clear pattern)"
-            }
-            status.text = "History reader: " + observedRows.size + " rows • Latest " + latestPeriod + " " + latestSize + " • Paper signal: " + signal
-            if (added > 0 && signal != "SKIP (no clear pattern)" && tail.size >= 5) {
-                if (prefs.getString("last_alert_period", "") != latestPeriod) {
-                    prefs.edit().putString("last_alert_period", latestPeriod).apply()
-                    sendTelegram("BDG paper observation\nLatest period: " + latestPeriod + "\nLatest result: " + latestSize + "\nPattern: " + signal + "\nNot a reliable prediction; no bet was placed.")
-                }
-            }
+            observedRows.clear()
+            observedRows.addAll(pageRows.take(10))
+            val latest = observedRows.first()
+            status.text = "पहले पेज के रिजल्ट: " + observedRows.size + "/10 • नया Period: " +
+                latest.first + " • " + latest.second
         } catch (_: Exception) {
-            status.text = "History reader: page structure not recognized yet"
+            status.text = "History reader: स्क्रीन का डेटा अभी पढ़ा नहीं जा सका"
         }
     }
 
@@ -367,41 +349,77 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val HISTORY_READER_JS = """(function() {
-          var out = [], seen = {};
-          function scan(doc) {
-            if (!doc) return;
-            // First use real table rows: period, number and BIG/SMALL columns.
-            Array.from(doc.querySelectorAll('tr')).forEach(function(tr) {
-              var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td) {
-                return (td.innerText || td.textContent || '').replace(/\\s+/g, ' ').trim();
-              });
-              var period = cells.find(function(x) { return /^[0-9]{12,24}$/.test(x); });
-              if (!period) return;
-              var size = cells.find(function(x) { return /\\b(big|small)\\b/i.test(x); });
-              var digitCell = cells.find(function(x) { return /^[0-9]$/.test(x); });
-              if (!size && digitCell) size = parseInt(digitCell,10) >= 5 ? 'BIG' : 'SMALL';
-              if (size) add(period, /big/i.test(size) ? 'BIG' : 'SMALL');
-            });
-            // Also inspect compact card/list containers used by some mobile layouts.
-            Array.from(doc.querySelectorAll('body *')).forEach(function(el) {
-              if (!el.getClientRects || !el.getClientRects().length) return;
-              var text = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
-              if (!text || text.length > 260) return;
-              var pm = text.match(/\\b[0-9]{12,24}\\b/);
-              var sm = text.match(/\\b(BIG|SMALL)\\b/i);
-              if (pm && sm) add(pm[0], sm[1].toUpperCase());
-            });
-            // Same-origin frames are readable; cross-origin frames are safely skipped.
-            Array.from(doc.querySelectorAll('iframe')).forEach(function(frame) {
-              try { scan(frame.contentDocument); } catch (_) {}
-            });
+        private const val HISTORY_READER_JS = """(function () {
+          var found = [], seen = Object.create(null), docs = [];
+          function visible(el) {
+            if (!el || !el.getClientRects || !el.getClientRects().length) return false;
+            var s = window.getComputedStyle(el);
+            return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+          }
+          function textOf(el) {
+            return (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim();
           }
           function add(period, size) {
-            if (!seen[period]) { seen[period] = true; out.push({period:period, size:size}); }
+            if (!seen[period] && (size === 'BIG' || size === 'SMALL')) {
+              seen[period] = true;
+              found.push({period: period, size: size});
+            }
           }
-          try { scan(document); } catch (_) {}
-          return JSON.stringify(out.slice(0,10));
+          function parseContainer(el, period) {
+            var txt = textOf(el);
+            if (!txt || txt.length > 420) return;
+            var sizeMatch = txt.match(/\\b(BIG|SMALL)\\b/i);
+            if (sizeMatch) {
+              add(period, sizeMatch[1].toUpperCase());
+              return;
+            }
+            var digitMatch = txt.match(/(?:^|\\s)([0-9])(?:\\s|$)/);
+            if (digitMatch) add(period, Number(digitMatch[1]) >= 5 ? 'BIG' : 'SMALL');
+          }
+          function scanRoot(root) {
+            if (!root || docs.indexOf(root) >= 0) return;
+            docs.push(root);
+            // Native tables and ARIA grids/rows.
+            root.querySelectorAll('tr,[role="row"],[role="gridcell"]').forEach(function (row) {
+              if (!visible(row)) return;
+              var txt = textOf(row);
+              var p = txt.match(/\\b[0-9]{8,24}\\b/);
+              if (p) parseContainer(row, p[0]);
+            });
+            // Mobile sites often render each result as a card, not a table.
+            root.querySelectorAll('body *').forEach(function (el) {
+              if (!visible(el)) return;
+              var direct = Array.from(el.childNodes || []).filter(function(n){return n.nodeType===3;})
+                .map(function(n){return n.nodeValue || '';}).join(' ').trim();
+              var own = textOf(el);
+              if (!own || own.length > 420) return;
+              var pm = own.match(/\\b[0-9]{8,24}\\b/);
+              if (!pm) return;
+              // Prefer the smallest ancestor containing both this period and its outcome.
+              var node = el;
+              for (var depth=0; node && depth<5; depth++, node=node.parentElement) {
+                var block = textOf(node);
+                if (block.length > 420) break;
+                if (new RegExp('\\\\b' + pm[0] + '\\\\b').test(block) &&
+                    /\\b(BIG|SMALL)\\b/i.test(block)) {
+                  parseContainer(node, pm[0]);
+                  break;
+                }
+              }
+              if (direct && /\\b(BIG|SMALL)\\b/i.test(own)) parseContainer(el, pm[0]);
+            });
+            // Include open shadow roots used by some modern game interfaces.
+            root.querySelectorAll('*').forEach(function(el) {
+              if (el.shadowRoot) scanRoot(el.shadowRoot);
+            });
+            // Same-origin frames only; browser security blocks cross-origin access.
+            root.querySelectorAll('iframe').forEach(function(frame) {
+              try { if (frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
+            });
+          }
+          try { scanRoot(document); } catch (_) {}
+          // DOM order is the visible page order. Do not paginate or fetch hidden pages.
+          return JSON.stringify(found.slice(0, 10));
         })()"""
     }
 }
