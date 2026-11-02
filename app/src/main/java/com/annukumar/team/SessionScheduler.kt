@@ -81,7 +81,6 @@ object SessionScheduler {
 
     fun sendTelegram(context: Context, message: String, onComplete: ((Boolean, String) -> Unit)? = null) {
         val prefs = context.getSharedPreferences("paper", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("telegram_enabled", false)) { onComplete?.invoke(false, "Telegram disabled"); return }
         val token = prefs.getString("telegram_bot_token", "").orEmpty()
         val chatId = prefs.getString("telegram_chat_id", "").orEmpty()
         if (token.isBlank() || chatId.isBlank()) { onComplete?.invoke(false, "Bot token or Chat ID missing"); return }
