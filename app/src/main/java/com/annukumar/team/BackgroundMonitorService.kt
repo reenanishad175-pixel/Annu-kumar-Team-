@@ -143,6 +143,7 @@ class BackgroundMonitorService : Service() {
             val pick = when {
                 tail.size == 3 && tail.all { it == "BIG" } -> "BIG"
                 tail.size == 3 && tail.all { it == "SMALL" } -> "SMALL"
+                tail.size == 3 && tail[0] != tail[1] && tail[1] != tail[2] -> if (tail[2] == "BIG") "SMALL" else "BIG"
                 bigCount > smallCount -> "BIG"
                 smallCount > bigCount -> "SMALL"
                 else -> tail.first()
