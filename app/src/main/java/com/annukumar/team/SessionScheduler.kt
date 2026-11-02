@@ -156,7 +156,7 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         val message = if (kind == "READY") {
             "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
         } else {
-            "SESSION UPDATE\\n\\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
+            "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
         }
         SessionScheduler.show(context, title, message)
         SessionScheduler.sendTelegram(context, message)
