@@ -136,10 +136,16 @@ class BackgroundMonitorService : Service() {
             }
             if (history.size < 3) return
             val tail = history.take(3)
+            val bigCount = history.count { it == "BIG" }
+            val smallCount = history.count { it == "SMALL" }
+            // Priority: three consecutive identical results continue in the same direction;
+            // otherwise use the majority among the latest ten results.
             val pick = when {
-                tail[0] == tail[1] && tail[1] == tail[2] -> if (tail[2] == "BIG") "SMALL" else "BIG"
-                tail[0] == tail[2] && tail[0] != tail[1] -> if (tail[2] == "BIG") "SMALL" else "BIG"
-                else -> if (tail.last() == "BIG") "SMALL" else "BIG"
+                tail.size == 3 && tail.all { it == "BIG" } -> "BIG"
+                tail.size == 3 && tail.all { it == "SMALL" } -> "SMALL"
+                bigCount > smallCount -> "BIG"
+                smallCount > bigCount -> "SMALL"
+                else -> tail.first()
             }
             val targetPeriod = try {
                 java.math.BigInteger(period).add(java.math.BigInteger.ONE).toString()
