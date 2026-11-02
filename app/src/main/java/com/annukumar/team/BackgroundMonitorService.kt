@@ -120,8 +120,7 @@ class BackgroundMonitorService : Service() {
                 val resolvedLevel = item.optInt("level",level).coerceIn(1,8)
                 if (outcome == "WIN") { wins++; level = 1 } else { level = (level + 1).coerceAtMost(8) }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
-                send(if (outcome == "WIN") "✅ RESULT: WIN" else "❌ RESULT: LOSS",
-                    "Prediction: $pick\nActual Result: $actual\nPeriod: $target\nLevel: $resolvedLevel\nSession Wins: $wins/5")
+                send("RESULT", "🎯 $target\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
                 .putInt("bg_wins",wins).putInt("bg_level",level).commit()
@@ -175,7 +174,8 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Prediction save failed • Telegram नहीं भेजा गया")
                 return
             }
-            val message = "🎮 $mode\n🆔 Period: $targetPeriod\n🎯 Prediction: $pick\n📶 Level: $currentLevel\n🏆 Session Wins: $wins/5"
+            val sessionLabel = when (activeHour) { 10 -> "10:00 AM"; 15 -> "3:00 PM"; 18 -> "6:00 PM"; else -> "9:00 PM" }
+            val message = "🔥 ANNU KUMAR TEAM – LIVE SIGNAL 🔥\n\n🎯 NEW PREDICTION\n\n📅 Period: $targetPeriod\n📊 Prediction: $pick\n\n⚡ Level: $currentLevel\n🎮 Session: $sessionLabel\n\n━━━━━━━━━━━━━━\n💎 Stay Connected | Stay Updated\n━━━━━━━━━━━━━━"
             updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
