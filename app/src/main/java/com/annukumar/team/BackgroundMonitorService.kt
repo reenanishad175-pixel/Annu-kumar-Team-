@@ -64,11 +64,11 @@ class BackgroundMonitorService : Service() {
     private fun process(raw: String) {
         try {
             val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
-            if (decoded.startsWith("WAIT_")) return
+            if (decoded.startsWith("WAIT_")) { updateMonitorDiagnostic("Service reader: " + decoded); return }
             val obj = JSONObject(decoded)
             val mode = obj.optString("mode")
-            val rows = obj.optJSONArray("rows") ?: return
-            if (rows.length() == 0) return
+            val rows = obj.optJSONArray("rows") ?: run { updateMonitorDiagnostic("Service reader: rows missing"); return }
+            if (rows.length() == 0) { updateMonitorDiagnostic("Service reader: history rows empty"); return }
             // Period number, not screen position, determines the newest completed result.
             val orderedRows = (0 until rows.length()).mapNotNull { i ->
                 rows.optJSONObject(i)?.let { row ->
@@ -79,7 +79,7 @@ class BackgroundMonitorService : Service() {
                     } else null
                 }
             }.sortedByDescending { it.first }
-            if (orderedRows.isEmpty()) return
+            if (orderedRows.isEmpty()) { updateMonitorDiagnostic("Service reader: no valid BIG/SMALL periods"); return }
             val latest = orderedRows.first().second
             val period = latest.optString("period")
             val result = latest.optString("size").uppercase(Locale.ROOT)
@@ -135,7 +135,7 @@ class BackgroundMonitorService : Service() {
             val history = orderedRows.take(10).map { (_, row) ->
                 row.optString("size").uppercase(Locale.ROOT)
             }
-            if (history.size < 3) return
+            if (history.size < 3) { updateMonitorDiagnostic("Service reader: only " + history.size + " valid results"); return }
             val tail = history.take(3)
             val bigCount = history.count { it == "BIG" }
             val smallCount = history.count { it == "SMALL" }
@@ -155,22 +155,27 @@ class BackgroundMonitorService : Service() {
             val level = prefs.getInt("bg_level",1).coerceIn(1,8)
             if (predictionSendInFlight) return
             predictionSendInFlight = true
+            updateMonitorDiagnostic("Prediction ready: " + targetPeriod + " • Telegram sending…")
             val message = "🎯 PREDICTION: $pick\nगेम: $mode\nPrediction: $pick\nTarget Period: $targetPeriod\nपिछला Period: $period\nLevel: $level\nSession Wins: ${prefs.getInt("bg_wins",0)}/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
                 if (ok) {
                     prefs.edit().putString("bg_pending_period",targetPeriod).putString("bg_pending_pick",pick).apply()
-                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    nm.notify(7102, notification("Telegram पर prediction भेज दी गई • $targetPeriod"))
+                    updateMonitorDiagnostic("Telegram sent • Prediction " + pick + " • Period " + targetPeriod)
                 } else {
                     android.util.Log.e("BackgroundMonitor", "Prediction Telegram failed: $detail")
-                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    nm.notify(7102, notification("Prediction नहीं भेजी गई: $detail • अगली कोशिश होगी"))
+                    updateMonitorDiagnostic("Telegram send failed • " + detail)
                 }
             }
             lastPoll = System.currentTimeMillis()
 
         } catch (e: Exception) { android.util.Log.e("BackgroundMonitor","parse",e) }
+    }
+
+    private fun updateMonitorDiagnostic(message: String) {
+        prefs.edit().putString("telegram_last_diagnostic", message).putLong("telegram_last_diagnostic_at", System.currentTimeMillis()).apply()
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(7102, notification(message))
     }
 
     private fun isOnline(): Boolean {
