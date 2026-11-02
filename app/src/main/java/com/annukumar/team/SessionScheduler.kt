@@ -23,7 +23,7 @@ object SessionScheduler {
     fun scheduleAll(context: Context) {
         sessionHours.forEach { hour ->
             schedule(context, hour, 0, "READY")
-            schedule(context, hour, 1, "START")
+            schedule(context, hour, 0, "START")
         }
     }
 
@@ -31,7 +31,7 @@ object SessionScheduler {
         val now = Calendar.getInstance()
         val at = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, if (kind == "READY") minute - 5 else minute)
+            set(Calendar.MINUTE, if (kind == "READY") 55 else minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
@@ -123,10 +123,10 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         val message: String
         if (kind == "READY") {
             title = "ANNU KUMAR TEAM"
-            message = "ARE YOU READY? आज का demo session " + time + " बजे शुरू होगा।"
+            message = "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
         } else {
-            title = "Demo session reminder"
-            message = "आपका scheduled demo session time " + time + " है। परिणाम स्वयं verify करें; कोई wager अपने-आप नहीं लगाया जाएगा।"
+            title = "SESSION UPDATE"
+            message = "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
         }
         SessionScheduler.show(context, title, message)
         SessionScheduler.sendTelegram(context, message)
