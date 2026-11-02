@@ -36,7 +36,7 @@ object SessionScheduler {
             set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
         }
-        val id = hour * 10 + if (kind == "READY") 1 else 2
+        val id = hour * 10 + if (kind == "READY") 1 else if (kind == "WAIT") 3 else 2
         val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
             action = "com.annukumar.team.$kind.$hour"
             putExtra("kind", kind)
@@ -130,7 +130,7 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         }
         SessionScheduler.show(context, title, message)
         SessionScheduler.sendTelegram(context, message)
-        if (hour >= 0) SessionScheduler.rescheduleOne(context, hour, kind)
+        if (hour >= 0) SessionScheduler.rescheduleOne(context, hour, if (kind == "READY") "READY" else "WAIT")
     }
 }
 
