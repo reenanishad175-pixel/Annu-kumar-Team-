@@ -46,7 +46,7 @@ class MainActivity : Activity() {
 
     private val pageMonitor = object : Runnable {
         override fun run() {
-            if (::web.isInitialized && pageReady) {
+            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE) {
                 web.evaluateJavascript(HISTORY_READER_JS) { raw ->
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
@@ -264,6 +264,10 @@ class MainActivity : Activity() {
                 status.text = "Lottery खोलकर Bingo चुनें • फिर 30 सेकंड / 1 / 3 / 5 मिनट में से गेम चुनें"
                 return
             }
+            if (decoded == "WAIT_PANEL") {
+                status.text = "चुना हुआ Bingo टैब मिला, लेकिन उसका अलग History panel नहीं मिला • गलत टैब का डेटा नहीं पढ़ा गया"
+                return
+            }
             if (decoded == "WAIT_MODE") {
                 status.text = "Bingo खुला है • 30 सेकंड, 1 मिनट, 3 मिनट या 5 मिनट वाला टैब चुनें"
                 return
@@ -286,7 +290,7 @@ class MainActivity : Activity() {
             observedRows.clear()
             observedRows.addAll(pageRows.take(10))
             val latest = observedRows.first()
-            status.text = "$mode History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
+            status.text = "$mode में दिखाई देने वाली History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
         } catch (_: Exception) {
             status.text = "चुने हुए Bingo टैब की History अभी पढ़ी नहीं जा सकी"
         }
@@ -377,7 +381,7 @@ class MainActivity : Activity() {
             {name:'Bingo 3 Minutes', re:/^bingo\s*(3\s*(minutes|min|m))$/i},
             {name:'Bingo 5 Minutes', re:/^bingo\s*(5\s*(minutes|min|m))$/i}
           ];
-          var selected = null, scope = document;
+          var selected = null, scope = null;
           var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
           for (var i=0; i<candidates.length; i++) {
             var el = candidates[i];
@@ -398,14 +402,14 @@ class MainActivity : Activity() {
             if (active) {
               selected = mode.name;
               var controls = el.getAttribute('aria-controls');
-              if (controls) {
-                var panel = document.getElementById(controls);
-                if (panel && visible(panel)) scope = panel;
-              }
+              var panel = controls ? document.getElementById(controls) : null;
+              if (!panel && el.closest) panel = el.closest('[role="tabpanel"]');
+              if (panel && visible(panel)) scope = panel;
               break;
             }
           }
           if (!selected) return JSON.stringify('WAIT_MODE');
+          if (!scope) return JSON.stringify('WAIT_PANEL');
 
           function add(period, size) {
             if (!seen[period] && (size === 'BIG' || size === 'SMALL')) {
@@ -429,7 +433,7 @@ class MainActivity : Activity() {
               var p = textOf(row).match(/\b[0-9]{8,24}\b/);
               if (p) parseContainer(row, p[0]);
             });
-            root.querySelectorAll('body *,*').forEach(function(el) {
+            root.querySelectorAll('tr,[role="row"],[role="gridcell"],article,[class*="record"],[class*="item"]').forEach(function(el) {
               if (!visible(el)) return;
               var own = textOf(el);
               if (!own || own.length > 420) return;
@@ -438,7 +442,7 @@ class MainActivity : Activity() {
               for (var node=el, depth=0; node && depth<5; depth++, node=node.parentElement) {
                 var block = textOf(node);
                 if (block.length > 420) break;
-                if (new RegExp('\\b'+pm[0]+'\\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
+                if (new RegExp('\b'+pm[0]+'\b').test(block) && /\b(BIG|SMALL)\b/i.test(block)) {
                   parseContainer(node, pm[0]); break;
                 }
               }
