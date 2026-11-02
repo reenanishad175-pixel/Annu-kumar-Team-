@@ -1,6 +1,7 @@
 package com.annukumar.team
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.os.Build
 import android.os.Handler
@@ -158,7 +159,6 @@ class MainActivity : Activity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     pageReady = true
                     status.text = "BDG पेज तैयार है • अब वेबसाइट पर अपनी ID और Password से लॉगिन करें"
-                    // Let the site use its own responsive viewport; do not force page position.
                     view?.evaluateJavascript(
                         "(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';})()",
                         null
@@ -180,7 +180,6 @@ class MainActivity : Activity() {
         dashboard.addView(settingsScreen, FrameLayout.LayoutParams(-1, -1))
         return root
     }
-
 
     private fun buildFloatingDashboard() {
         floatingPanel = LinearLayout(this).apply {
@@ -241,7 +240,6 @@ class MainActivity : Activity() {
             small > big -> "SMALL अधिक: $small बनाम BIG $big"
             else -> "दोनों बराबर: BIG $big / SMALL $small"
         }
-        // Transparent heuristic: majority of the currently visible sample; ties follow the latest result.
         val pick = when {
             big > small -> "BIG"
             small > big -> "SMALL"
@@ -256,7 +254,6 @@ class MainActivity : Activity() {
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${rows.size}: " + rows.joinToString("  ›  ") { it.second }
 
-        // Send one Telegram update for each newly observed latest period, never every poll.
         val predictionKey = "$mode|${rows.first().first}|$pick"
         if (predictionKey != lastTelegramPredictionKey) {
             lastTelegramPredictionKey = predictionKey
@@ -327,9 +324,7 @@ class MainActivity : Activity() {
             backgroundTintList = ColorStateList.valueOf(accent)
             setOnClickListener { saveSettings() }
         }
-        content.addView(save, LinearLayout.LayoutParams(-1, dp(50)).apply {
-            topMargin = dp(18)
-        })
+        content.addView(save, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(18) })
         val testTelegram = Button(this).apply {
             text = "SEND TEST MESSAGE"
             isAllCaps = false
@@ -353,10 +348,12 @@ class MainActivity : Activity() {
         val stopMonitor = Button(this).apply {
             text = "STOP BACKGROUND MONITORING"
             isAllCaps = false
-            setOnClickListener { stopService(Intent(this@MainActivity, BackgroundMonitorService::class.java)); Toast.makeText(this@MainActivity, "Monitoring stopped", Toast.LENGTH_SHORT).show() }
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, BackgroundMonitorService::class.java))
+                Toast.makeText(this@MainActivity, "Monitoring stopped", Toast.LENGTH_SHORT).show()
+            }
         }
         content.addView(stopMonitor, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
-
         content.addView(label("Token और Chat ID इसी डिवाइस में सेव होंगे। इन्हें किसी के साथ साझा न करें।", 12f).apply {
             setTextColor(muted)
             setPadding(0, dp(14), 0, 0)
@@ -401,8 +398,6 @@ class MainActivity : Activity() {
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
     }
 
-
-    // Read only the currently selected Bingo duration tab.
     private fun consumeHistory(raw: String) {
         try {
             val decoded = org.json.JSONTokener(raw).nextValue() as? String ?: return
@@ -578,8 +573,6 @@ class MainActivity : Activity() {
             var rolePanel = tab.closest && tab.closest('[role="tabpanel"]');
             if (rolePanel && visible(rolePanel)) return rolePanel;
 
-            // BDG may render tabs without ARIA panel links. Find a sibling content
-            // region of the tab strip, but accept it only when it contains result rows.
             var tabGroup = tab.closest && (tab.closest('[role="tablist"]') || tab.parentElement);
             for (var ancestor = tabGroup, depth = 0; ancestor && depth < 5; depth++, ancestor = ancestor.parentElement) {
               var children = Array.from(ancestor.children || []);
@@ -600,7 +593,6 @@ class MainActivity : Activity() {
             if (!txt || txt.length > 420) return;
             var periods = txt.match(/\b[0-9]{8,24}\b/g) || [];
             var sizes = txt.match(/\b(BIG|SMALL)\b/ig) || [];
-            // A single self-contained record only: never borrow a result from an ancestor.
             if (periods.length !== 1 || sizes.length !== 1) return;
             var period = periods[0], size = sizes[0].toUpperCase();
             if (!seen[period]) {
