@@ -430,6 +430,17 @@ class MainActivity : Activity() {
                 updateDashboard(mode, emptyList())
                 return
             }
+            // Send the exact history snapshot read from the currently selected visible tab.
+            val monitorIntent = Intent(this, BackgroundMonitorService::class.java).apply {
+                action = BackgroundMonitorService.ACTION_HISTORY_UPDATE
+                putExtra(BackgroundMonitorService.EXTRA_HISTORY_JSON, raw)
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= 26) startForegroundService(monitorIntent) else startService(monitorIntent)
+            } catch (e: Exception) {
+                prefs.edit().putString("telegram_last_diagnostic", "History पढ़ी गई, monitor तक नहीं पहुँची: " + (e.localizedMessage ?: "service error"))
+                    .putLong("telegram_last_diagnostic_at", System.currentTimeMillis()).apply()
+            }
             observedRows.clear()
             observedRows.addAll(pageRows.take(10))
             val latest = observedRows.first()
