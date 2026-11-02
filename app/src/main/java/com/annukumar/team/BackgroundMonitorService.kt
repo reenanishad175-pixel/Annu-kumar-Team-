@@ -126,7 +126,7 @@ class BackgroundMonitorService : Service() {
                 val pick = item.optString("pick")
                 val actual = item.optString("actual")
                 val resolvedLevel = item.optInt("level",level).coerceIn(1,8)
-                if (outcome == "WIN") { wins++; level = 1 } else { level = (resolvedLevel + 1).coerceAtMost(8) }
+                if (outcome == "WIN") { wins++; level = 1 } else { level = (level + 1).coerceAtMost(8) }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
                 send(if (outcome == "WIN") "✅ RESULT: WIN" else "❌ RESULT: LOSS",
                     "Prediction: $pick\nActual Result: $actual\nPeriod: $target\nLevel: $resolvedLevel\nSession Wins: $wins/5")
@@ -183,10 +183,7 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Prediction save failed • Telegram नहीं भेजा गया")
                 return
             }
-            val previousPeriod = prefs.getString("bg_last_result_period","").orEmpty()
-            val previousOutcome = prefs.getString("bg_last_outcome","—").orEmpty()
-            val previousLine = if (previousPeriod.isNotBlank()) "पिछला Period: $previousPeriod • Result: $previousOutcome\n" else ""
-            val message = "🎯 PREDICTION: $pick\nगेम: $mode\nTarget Period: $targetPeriod\n${previousLine}Level: $currentLevel\nSession Wins: $wins/5\nयह केवल पैटर्न अनुमान है, गारंटी नहीं।"
+            val message = "🎯 𝗣𝗥𝗘𝗗𝗜𝗖𝗧𝗜𝗢𝗡\\n\\n🔥 चयन: $pick\\n🎮 गेम: $mode\\n🆔 Period: $targetPeriod\\n📶 Level: $currentLevel\\n🏆 Wins: $wins/5"
             updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
