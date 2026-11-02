@@ -174,7 +174,11 @@ class BackgroundMonitorService : Service() {
             }
             lastPoll = System.currentTimeMillis()
 
-        } catch (e: Exception) { android.util.Log.e("BackgroundMonitor","parse",e) }
+        } catch (e: Exception) {
+            android.util.Log.e("BackgroundMonitor", "Prediction pipeline failed", e)
+            val reason = e.localizedMessage ?: e.javaClass.simpleName
+            updateMonitorDiagnostic("Prediction pipeline error: " + reason.take(180))
+        }
     }
 
     private fun updateMonitorDiagnostic(message: String) {
