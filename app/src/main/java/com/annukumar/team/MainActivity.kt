@@ -232,74 +232,77 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Extract each history item from its own rendered DOM container.
+     * This avoids joining a period from one row to a result in another row.
+     */
     private fun readPage() {
         if (!::web.isInitialized) return
-        // BDG's visible history is a row with Period | Number | Big Small | Color.
-        // Read visible page text and parse complete row tuples; never mix a period
-        // from one row with a result label from another row.
         val script = """(function(){
-          const visible = e => !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));
-          const text = document.body ? document.body.innerText : '';
-          return JSON.stringify({text: text.slice(0,30000)});
+          const visible = e => !!(e && e.getClientRects().length);
+          const periodRe = /\b\d{15,24}\b/;
+          const seen = new Set(), rows = [];
+          const leaves = Array.from(document.querySelectorAll('body *'))
+            .filter(e => visible(e) && e.children.length === 0);
+          for (const leaf of leaves) {
+            const pm = (leaf.innerText || leaf.textContent || '').trim().match(periodRe);
+            if (!pm || seen.has(pm[0])) continue;
+            let p = leaf;
+            for (let depth = 0; p && depth < 9; depth++, p = p.parentElement) {
+              if (!visible(p)) continue;
+              const t = (p.innerText || p.textContent || '').replace(/\s+/g, ' ').trim();
+              if (!periodRe.test(t)) continue;
+              const rest = t.replace(pm[0], ' ');
+              const om = /\b(BIG|SMALL)\b/i.exec(rest);
+              if (!om) continue;
+              const nm = /(?:^|\D)([0-9])(?:\D|$)/.exec(rest.slice(0, om.index));
+              if (!nm) continue;
+              const number = Number(nm[1]), outcome = om[1].toUpperCase();
+              if ((number <= 4 ? 'SMALL' : 'BIG') !== outcome) break;
+              rows.push({period: pm[0], number: number, outcome: outcome});
+              seen.add(pm[0]);
+              break;
+            }
+          }
+          return JSON.stringify({rows: rows.slice(0,10)});
         })()"""
         web.evaluateJavascript(script) { raw ->
             try {
                 val decoded = JSONArray("[" + (raw ?: "{}") + "]").getJSONObject(0)
-                inspectText(decoded.optString("text"))
+                inspectRows(decoded.optJSONArray("rows") ?: JSONArray())
             } catch (_: Exception) {
-                status.text = "BDG page text could not be decoded. Reload the game page and try again."
+                status.text = "History data could not be decoded. Reload BDG and open WinGo history."
             }
         }
     }
 
-    private fun inspectText(rawText: String, labelledOutcomes: List<String> = emptyList()) {
-        val content = rawText.replace(Regex("\\s+"), " ").trim()
-        // Match complete history rows in the same order shown by BDG:
-        // 19-digit period, one result digit, then the displayed BIG/SMALL value.
-        val rowRegex = Regex("(\\d{15,24})\\s+([0-9])\\s+(BIG|SMALL)", RegexOption.IGNORE_CASE)
-        val rows = rowRegex.findAll(content).mapNotNull { match ->
-            val periodId = match.groupValues[1]
-            val number = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
-            val displayed = match.groupValues[3].uppercase()
-            val calculated = if (number <= 4) "SMALL" else "BIG"
-            if (displayed != calculated) null else Triple(periodId, number, calculated)
-        }.toList()
-
-        // The current round appears above the history table on the BDG page.
-        // Prefer the first long period-like value on the page, then the newest
-        // validated history row as a fallback.
-        val period = Regex("\\b\\d{15,24}\\b").find(content)?.value
-            ?: rows.firstOrNull()?.first.orEmpty()
-        val detectedTimer = when {
-            Regex("(?:30\\s*(?:s|sec|seconds)|\\b30秒)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "30S"
-            Regex("(?:1\\s*(?:m|min|minute)|\\b1分钟)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "1M"
-            Regex("(?:3\\s*(?:m|min|minute)|\\b3分钟)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> "3M"
-            else -> null
+    private fun inspectRows(rows: JSONArray) {
+        val validRows = mutableListOf<Triple<String, Int, String>>()
+        val seen = mutableSetOf<String>()
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            val period = row.optString("period")
+            val number = row.optInt("number", -1)
+            val outcome = row.optString("outcome").uppercase()
+            if (!period.matches(Regex("\\d{15,24}")) || number !in 0..9) continue
+            if (outcome != (if (number <= 4) "SMALL" else "BIG")) continue
+            if (seen.add(period)) validRows.add(Triple(period, number, outcome))
+            if (validRows.size == 10) break
         }
-        if (detectedTimer != null) timerName = detectedTimer
-        timerView.text = "Website timer: " + timerName
-        if (period.isNotEmpty()) {
-            periodView.text = "Period: " + period
-            if (tracking && period != lastPeriod) {
-                lastPeriod = period
-                persistTrackerState()
-                addPaperPrediction(period)
-            }
-        } else {
+        if (validRows.isEmpty()) {
             periodView.text = "Period: Not detected"
+            status.text = "No complete history rows detected. Open WinGo game history and tap Read website now."
+            return
         }
-
-        if (rows.isNotEmpty()) {
-            // BDG displays newest first; the manual pattern analyzer expects old-to-new.
-            val recent = rows.take(10).asReversed()
-            resultsInput.setText(recent.joinToString(" ") { it.third })
-            status.text = "BDG history rows read: " + recent.size +
-                ". Period, number and BIG/SMALL were cross-checked; verify on screen before paper analysis."
-        } else if (labelledOutcomes.isNotEmpty()) {
-            status.text = "Only standalone result labels were found; no complete Period/Number/Big-Small rows. No history imported."
-        } else {
-            status.text = "BDG page visible, but complete history rows were not readable. Open WinGo 30sec Game history."
+        val newest = validRows.first()
+        periodView.text = "Period: " + newest.first
+        if (tracking && newest.first != lastPeriod) {
+            lastPeriod = newest.first
+            persistTrackerState()
+            addPaperPrediction(newest.first)
         }
+        resultsInput.setText(validRows.asReversed().joinToString(" ") { it.third })
+        status.text = "Complete history rows detected: \${validRows.size}/10. Results are ordered oldest to newest. Scroll/load history if fewer than 10 appear."
     }
 
     private fun addPaperPrediction(period: String) {
