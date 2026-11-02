@@ -164,6 +164,7 @@ class MainActivity : Activity() {
                         "(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';})()",
                         null
                     )
+                    view?.evaluateJavascript(NETWORK_HISTORY_HOOK_JS, null)
                 }
 
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -497,6 +498,45 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val NETWORK_HISTORY_HOOK_JS = """(function(){
+          if (window.__annuNetworkHookInstalled) return;
+          window.__annuNetworkHookInstalled = true;
+          window.__annuNetworkRows = window.__annuNetworkRows || [];
+          function collect(value) {
+            function walk(v, depth) {
+              if (!v || typeof v !== "object" || depth > 8) return;
+              if (Array.isArray(v)) { v.forEach(function(x){ walk(x, depth + 1); }); return; }
+              var period = v.period || v.issueNumber || v.issue || v.expect || v.drawNumber || v.round;
+              var result = v.size || v.bigSmall || v.resultSize || v.openResult || v.result;
+              if (period != null && result != null) {
+                var p = String(period), z = String(result).toUpperCase();
+                if (/^[0-9]{8,24}$/.test(p) && (z === "BIG" || z === "SMALL")) {
+                  if (!window.__annuNetworkRows.some(function(x){ return x.period === p; })) window.__annuNetworkRows.push({period:p,size:z});
+                }
+              }
+              Object.keys(v).forEach(function(k){ walk(v[k], depth + 1); });
+            }
+            walk(value, 0);
+            if (window.__annuNetworkRows.length > 100) window.__annuNetworkRows = window.__annuNetworkRows.slice(-100);
+          }
+          var fetch0 = window.fetch;
+          if (fetch0) window.fetch = function(){
+            return fetch0.apply(this, arguments).then(function(response){
+              try { response.clone().json().then(collect).catch(function(){}); } catch(e) {}
+              return response;
+            });
+          };
+          var open0 = XMLHttpRequest.prototype.open;
+          var send0 = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.open = function(method, url){ this.__annuUrl = String(url || ""); return open0.apply(this, arguments); };
+          XMLHttpRequest.prototype.send = function(){
+            this.addEventListener("load", function(){
+              try { if (this.responseType === "" || this.responseType === "text") collect(JSON.parse(this.responseText)); } catch(e) {}
+            });
+            return send0.apply(this, arguments);
+          };
+        })()""";
+
         private const val HISTORY_READER_JS = """(function () {
           var found = [], seen = Object.create(null), roots = [];
           function visible(el) {
@@ -603,6 +643,14 @@ class MainActivity : Activity() {
             });
           }
           try { scanRoot(scope); } catch (_) {}
+          if (found.length === 0 && Array.isArray(window.__annuNetworkRows)) {
+            window.__annuNetworkRows.forEach(function(row) {
+              if (row && row.period && (row.size === "BIG" || row.size === "SMALL") && !seen[row.period]) {
+                seen[row.period] = true;
+                found.push({period:String(row.period), size:row.size});
+              }
+            });
+          }
           return JSON.stringify({mode:selected, rows:found.slice(0,10)});
         })()"""
     }
