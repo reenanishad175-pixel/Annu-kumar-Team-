@@ -302,7 +302,7 @@ class MainActivity : Activity() {
             addPaperPrediction(newest.first)
         }
         resultsInput.setText(validRows.asReversed().joinToString(" ") { it.third })
-        status.text = "Complete history rows detected: \${validRows.size}/10. Results are ordered oldest to newest. Scroll/load history if fewer than 10 appear."
+        status.text = "Complete history rows detected: ${validRows.size}/10. Results are ordered oldest to newest. Scroll/load history if fewer than 10 appear."
     }
 
     private fun addPaperPrediction(period: String) {
