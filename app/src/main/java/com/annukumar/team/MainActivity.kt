@@ -28,6 +28,15 @@ class MainActivity : Activity() {
     private lateinit var web: WebView
     private lateinit var status: TextView
     private lateinit var dashboard: FrameLayout
+    private lateinit var floatingPanel: LinearLayout
+    private lateinit var panelBody: LinearLayout
+    private lateinit var panelToggle: Button
+    private lateinit var selectedModeView: TextView
+    private lateinit var predictionView: TextView
+    private lateinit var trendView: TextView
+    private lateinit var historyView: TextView
+    private var panelMinimized = false
+    private var selectedModeName = "अभी कोई गेम चयनित नहीं"
     private lateinit var settingsScreen: ScrollView
     private lateinit var tokenField: EditText
     private lateinit var chatField: EditText
@@ -159,10 +168,87 @@ class MainActivity : Activity() {
             }
         }
         dashboard.addView(web, FrameLayout.LayoutParams(-1, -1))
+        buildFloatingDashboard()
 
         settingsScreen = buildSettings()
         dashboard.addView(settingsScreen, FrameLayout.LayoutParams(-1, -1))
         return root
+    }
+
+
+    private fun buildFloatingDashboard() {
+        floatingPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setBackgroundColor(Color.rgb(16, 27, 43))
+            elevation = dp(12).toFloat()
+        }
+        panelToggle = Button(this).apply {
+            text = "▼  LIVE DASHBOARD  •  छोटा करें"
+            isAllCaps = false
+            textSize = 12f
+            setTextColor(accent)
+            backgroundTintList = ColorStateList.valueOf(panel)
+            setOnClickListener { toggleDashboard() }
+        }
+        floatingPanel.addView(panelToggle, LinearLayout.LayoutParams(-1, dp(38)))
+        panelBody = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(4), dp(5), dp(4), dp(2))
+        }
+        selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 17f).apply { setTextColor(accent) }
+        trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
+        historyView = label("हाल के नतीजे: —", 12f).apply { setTextColor(muted) }
+        panelBody.addView(selectedModeView)
+        panelBody.addView(predictionView)
+        panelBody.addView(trendView)
+        panelBody.addView(historyView)
+        floatingPanel.addView(panelBody)
+        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+        lp.setMargins(dp(8), 0, dp(8), dp(8))
+        dashboard.addView(floatingPanel, lp)
+        floatingPanel.bringToFront()
+    }
+
+    private fun toggleDashboard() {
+        panelMinimized = !panelMinimized
+        panelBody.visibility = if (panelMinimized) View.GONE else View.VISIBLE
+        panelToggle.text = if (panelMinimized) "▲  LIVE DASHBOARD  •  खोलें" else "▼  LIVE DASHBOARD  •  छोटा करें"
+    }
+
+    private fun updateDashboard(mode: String, rows: List<Pair<String, String>>) {
+        selectedModeName = mode
+        selectedModeView.text = "चयन: $mode  •  पढ़े गए: ${rows.size}/10"
+        if (rows.isEmpty()) {
+            predictionView.text = "अनुमान: पर्याप्त डेटा नहीं"
+            trendView.text = "ट्रेंड: —"
+            historyView.text = "हाल के नतीजे: —"
+            return
+        }
+        val big = rows.count { it.second == "BIG" }
+        val small = rows.size - big
+        val latest = rows.first().second
+        val streak = rows.takeWhile { it.second == latest }.size
+        val trend = when {
+            big > small -> "BIG अधिक: $big बनाम SMALL $small"
+            small > big -> "SMALL अधिक: $small बनाम BIG $big"
+            else -> "दोनों बराबर: BIG $big / SMALL $small"
+        }
+        // Transparent heuristic: majority of the currently visible sample; ties follow the latest result.
+        val pick = when {
+            big > small -> "BIG"
+            small > big -> "SMALL"
+            else -> latest
+        }
+        val confidence = when {
+            rows.size < 5 -> "कम"
+            kotlin.math.abs(big - small) >= 4 -> "मध्यम (सिर्फ पैटर्न-आधारित)"
+            else -> "कम (पैटर्न कमजोर)"
+        }
+        predictionView.text = "अनुमान: $pick  •  भरोसा: $confidence"
+        trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
+        historyView.text = "हाल के ${rows.size}: " + rows.joinToString("  ›  ") { it.second }
     }
 
     private fun buildSettings(): ScrollView {
@@ -266,10 +352,12 @@ class MainActivity : Activity() {
             }
             if (decoded == "WAIT_PANEL") {
                 status.text = "चुना हुआ Bingo टैब मिला, लेकिन उसका अलग History panel नहीं मिला • गलत टैब का डेटा नहीं पढ़ा गया"
+                updateDashboard(selectedModeName, emptyList())
                 return
             }
             if (decoded == "WAIT_MODE") {
                 status.text = "Bingo खुला है • 30 सेकंड, 1 मिनट, 3 मिनट या 5 मिनट वाला टैब चुनें"
+                updateDashboard("अभी कोई गेम चयनित नहीं", emptyList())
                 return
             }
             val payload = JSONObject(decoded)
@@ -285,14 +373,17 @@ class MainActivity : Activity() {
             }
             if (pageRows.isEmpty()) {
                 status.text = "$mode खुला है • इसी टैब की History में पढ़ने योग्य रिजल्ट नहीं मिला"
+                updateDashboard(mode, emptyList())
                 return
             }
             observedRows.clear()
             observedRows.addAll(pageRows.take(10))
             val latest = observedRows.first()
             status.text = "$mode में दिखाई देने वाली History: " + observedRows.size + "/10 • Period: " + latest.first + " • " + latest.second
+            updateDashboard(mode, observedRows.toList())
         } catch (_: Exception) {
             status.text = "चुने हुए Bingo टैब की History अभी पढ़ी नहीं जा सकी"
+            updateDashboard(selectedModeName, emptyList())
         }
     }
 
