@@ -250,6 +250,7 @@ class MainActivity : Activity() {
         val pick = when {
             latestThree.size == 3 && latestThree.all { it == "BIG" } -> "BIG"
             latestThree.size == 3 && latestThree.all { it == "SMALL" } -> "SMALL"
+            latestThree.size == 3 && latestThree[0] != latestThree[1] && latestThree[1] != latestThree[2] -> if (latestThree[2] == "BIG") "SMALL" else "BIG"
             big > small -> "BIG"
             small > big -> "SMALL"
             else -> latest
