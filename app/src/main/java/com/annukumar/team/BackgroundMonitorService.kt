@@ -141,15 +141,16 @@ class BackgroundMonitorService : Service() {
                 return
             }
             if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
-            if (level >= 8 && resolved.any { it.third == "LOSS" }) {
-                val lastLoss = resolved.lastOrNull { it.third == "LOSS" }
-                if (lastLoss != null) {
-                    val lossItem = predictions.optJSONObject(lastLoss.second)
-                    if (lossItem?.optInt("level",1) == 8) {
-                        prefs.edit().putBoolean("bg_stopped",true).commit()
-                        send("सेशन समाप्त","Level 8 पर LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
-                        return
-                    }
+            // Stop only when the chronologically latest resolved prediction is a
+            // Level 8 LOSS. An older Level 8 LOSS must not override a later WIN
+            // resolved in the same history batch (which resets the level to 1).
+            val latestResolved = resolved.lastOrNull()
+            if (level >= 8 && latestResolved?.third == "LOSS") {
+                val latestItem = predictions.optJSONObject(latestResolved.second)
+                if (latestItem?.optInt("level", 1) == 8) {
+                    prefs.edit().putBoolean("bg_stopped", true).commit()
+                    send("सेशन समाप्त", "Level 8 पर लगातार LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
+                    return
                 }
             }
 
