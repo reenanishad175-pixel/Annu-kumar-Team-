@@ -169,7 +169,7 @@ class SessionAlarmReceiver : BroadcastReceiver() {
             // Re-check immediately before sending; a successful prediction cancels this alarm
             // and sets the same preference, so a late alarm cannot send a false delay notice.
             if (prefs.getBoolean("session_first_signal_" + date + "_" + hour, false)) return
-            val message = "SESSION UPDATE\\n\\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
+            val message = "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
             SessionScheduler.show(context, "SESSION UPDATE", message)
             SessionScheduler.sendTelegram(context, message)
             SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
