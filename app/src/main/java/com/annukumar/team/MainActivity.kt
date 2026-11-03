@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private lateinit var loginTab: Button
     private lateinit var settingsTab: Button
     private var pageReady = false
+    private var historyReadInFlight = false
     private val seenPeriods = LinkedHashSet<String>()
     private val observedRows = mutableListOf<Pair<String, String>>()
 
@@ -62,8 +63,10 @@ class MainActivity : Activity() {
 
     private val pageMonitor = object : Runnable {
         override fun run() {
-            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE) {
+            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE && !isFinishing && !historyReadInFlight) {
+                historyReadInFlight = true
                 web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
@@ -142,6 +145,10 @@ class MainActivity : Activity() {
             isNestedScrollingEnabled = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // Advisory renderer priority while user-enabled monitoring is active.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+            }
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = true
             settings.setSupportMultipleWindows(false)
@@ -484,7 +491,14 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::web.isInitialized) web.onResume()
+        if (::web.isInitialized) {
+            web.onResume()
+            if (pageReady && web.visibility == View.VISIBLE) {
+                web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
