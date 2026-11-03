@@ -493,8 +493,12 @@ class MainActivity : Activity() {
         super.onResume()
         if (::web.isInitialized) {
             web.onResume()
-            if (pageReady && web.visibility == View.VISIBLE) {
+            if (pageReady && web.visibility == View.VISIBLE && !historyReadInFlight) {
+                // Use the same in-flight guard as the regular poll so resume cannot
+                // overlap a history read already started by the polling Runnable.
+                historyReadInFlight = true
                 web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
