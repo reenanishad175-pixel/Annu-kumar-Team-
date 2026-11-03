@@ -30,8 +30,14 @@ object SessionScheduler {
     private fun schedule(context: Context, hour: Int, minute: Int, kind: String) {
         val now = Calendar.getInstance()
         val at = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, if (kind == "READY") 55 else minute)
+            if (kind == "READY") {
+                // Reminder belongs to the session at 'hour', so fire at HH-1:55.
+                set(Calendar.HOUR_OF_DAY, hour - 1)
+                set(Calendar.MINUTE, 55)
+            } else {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+            }
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
@@ -53,7 +59,7 @@ object SessionScheduler {
     }
 
     fun rescheduleOne(context: Context, hour: Int, kind: String) {
-        schedule(context, hour, if (kind == "READY") 0 else 0, kind)
+        schedule(context, hour, 0, kind)
     }
 
     fun scheduleWaitIn15Minutes(context: Context, hour: Int, sessionDate: String) {
