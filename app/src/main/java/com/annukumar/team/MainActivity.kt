@@ -525,3 +525,4 @@ class MainActivity : Activity() {
     companion object {
 
 }
+}
