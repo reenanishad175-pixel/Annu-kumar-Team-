@@ -21,70 +21,63 @@ object SessionScheduler {
     private val sessionHours = intArrayOf(10, 15, 18, 21)
 
     fun scheduleAll(context: Context) {
-        sessionHours.forEach { hour ->
-            schedule(context, hour, 0, "READY")
-            schedule(context, hour, 0, "START")
+        // Cancel legacy START/WAIT alarms left by older APK installs or updates.
+        cancelLegacySessionAlarms(context)
+        sessionHours.forEach { hour -> scheduleReady(context, hour) }
+    }
+
+    private fun cancelLegacySessionAlarms(context: Context) {
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val dates = (0..1).map { offset ->
+            Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, offset) }
+        }
+        for (hour in sessionHours) {
+            for (day in dates) {
+                val dateKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(day.time)
+                for (kind in arrayOf("START", "WAIT")) {
+                    val legacyIntent = Intent(context, SessionAlarmReceiver::class.java).apply {
+                        action = "com.annukumar.team.$kind.$hour.$dateKey"
+                    }
+                    val requestCode = hour * 10 + if (kind == "WAIT") 3 else 2
+                    val pending = PendingIntent.getBroadcast(
+                        context, requestCode, legacyIntent,
+                        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    if (pending != null) {
+                        alarm.cancel(pending)
+                        pending.cancel()
+                    }
+                }
+            }
         }
     }
 
-    private fun schedule(context: Context, hour: Int, minute: Int, kind: String) {
+    private fun scheduleReady(context: Context, hour: Int) {
         val now = Calendar.getInstance()
         val at = Calendar.getInstance().apply {
-            if (kind == "READY") {
-                // Reminder belongs to the session at 'hour', so fire at HH-1:55.
-                set(Calendar.HOUR_OF_DAY, hour - 1)
-                set(Calendar.MINUTE, 55)
-            } else {
-                set(Calendar.HOUR_OF_DAY, hour)
-                set(Calendar.MINUTE, minute)
-            }
+            set(Calendar.HOUR_OF_DAY, hour - 1)
+            set(Calendar.MINUTE, 55)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
         }
-        val id = hour * 10 + if (kind == "READY") 1 else if (kind == "WAIT") 3 else 2
         val dateKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(at.time)
         val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
-            action = "com.annukumar.team.$kind.$hour.$dateKey"
-            putExtra("kind", kind)
+            action = "com.annukumar.team.READY.$hour.$dateKey"
+            putExtra("kind", "READY")
             putExtra("hour", hour)
             putExtra("session_date", dateKey)
         }
         val pending = PendingIntent.getBroadcast(
-            context, id, intent,
+            context, hour * 10 + 1, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.timeInMillis, pending)
     }
 
-    fun rescheduleOne(context: Context, hour: Int, kind: String) {
-        schedule(context, hour, 0, kind)
-    }
-
-    fun scheduleWaitIn15Minutes(context: Context, hour: Int, sessionDate: String) {
-        if (hasFirstSignal(context, hour, sessionDate)) return
-        val intent = Intent(context, SessionAlarmReceiver::class.java).apply {
-            action = "com.annukumar.team.WAIT.$hour.$sessionDate"
-            putExtra("kind", "WAIT")
-            putExtra("hour", hour)
-            putExtra("session_date", sessionDate)
-        }
-        val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 15L * 60L * 1000L, pending)
-    }
-
-    private fun hasFirstSignal(context: Context, hour: Int, date: String): Boolean =
-        context.getSharedPreferences("paper", Context.MODE_PRIVATE)
-            .getBoolean("session_first_signal_" + date + "_" + hour, false)
-
-    fun markFirstSignalSent(context: Context, hour: Int) {
-        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
-        context.getSharedPreferences("paper", Context.MODE_PRIVATE).edit().putBoolean("session_first_signal_" + date + "_" + hour, true).commit()
-        val intent = Intent(context, SessionAlarmReceiver::class.java).apply { action = "com.annukumar.team.WAIT." + hour + "." + date; putExtra("kind", "WAIT"); putExtra("hour", hour); putExtra("session_date", date) }
-        val pending = PendingIntent.getBroadcast(context, hour * 10 + 3, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+    fun rescheduleReady(context: Context, hour: Int) {
+        scheduleReady(context, hour)
     }
 
     fun show(context: Context, title: String, message: String) {
@@ -149,37 +142,19 @@ object SessionScheduler {
 
 class SessionAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val kind = intent.getStringExtra("kind") ?: return
+        if (intent.getStringExtra("kind") != "READY") return
         val hour = intent.getIntExtra("hour", -1)
         if (hour !in intArrayOf(10, 15, 18, 21)) return
-        val date = intent.getStringExtra("session_date") ?: java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val date = intent.getStringExtra("session_date") ?: return
         val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
         if (date != today) return
-        val prefs = context.getSharedPreferences("paper", Context.MODE_PRIVATE)
-        if (kind == "WAIT" && prefs.getBoolean("session_first_signal_" + date + "_" + hour, false)) return
-
-        // START is only a checkpoint: do not announce a delay at the session start.
-        // Give the monitor 15 minutes to deliver its first successful prediction.
-        if (kind == "START") {
-            SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
-            return
-        }
 
         val time = String.format("%02d:00", hour)
-        if (kind == "READY") {
-            val message = "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
-            SessionScheduler.show(context, "ANNU KUMAR TEAM", message)
-            SessionScheduler.sendTelegram(context, message)
-            SessionScheduler.rescheduleOne(context, hour, "READY")
-        } else if (kind == "WAIT") {
-            // Re-check immediately before sending; a successful prediction cancels this alarm
-            // and sets the same preference, so a late alarm cannot send a false delay notice.
-            if (prefs.getBoolean("session_first_signal_" + date + "_" + hour, false)) return
-            val message = "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
-            SessionScheduler.show(context, "SESSION UPDATE", message)
-            SessionScheduler.sendTelegram(context, message)
-            SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
-        }
+        val message = "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
+        SessionScheduler.show(context, "ANNU KUMAR TEAM", message)
+        SessionScheduler.sendTelegram(context, message)
+        // Schedule only the next day's reminder for this same session.
+        SessionScheduler.rescheduleReady(context, hour)
     }
 }
 class BootReceiver : BroadcastReceiver() {
