@@ -2,7 +2,7 @@ package com.annukumar.team
 
 /** Shared read-only scripts used by the visible BDG page and the foreground reader WebView. */
 internal object BdgHistoryReader {
-private const val NETWORK_HISTORY_HOOK_JS = """(function(){
+const val NETWORK_HISTORY_HOOK_JS = """(function(){
   if (window.__annuNetworkHookInstalled) return;
   window.__annuNetworkHookInstalled = true;
   window.__annuNetworkRows = window.__annuNetworkRows || [];
@@ -41,7 +41,7 @@ private const val NETWORK_HISTORY_HOOK_JS = """(function(){
   };
 })()""";
 
-private const val HISTORY_READER_JS = """(function () {
+const val HISTORY_READER_JS = """(function () {
   var found = [], seen = Object.create(null), roots = [];
   function visible(el) {
     if (!el || !el.getClientRects || !el.getClientRects().length) return false;
