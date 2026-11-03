@@ -23,6 +23,37 @@ class BackgroundMonitorService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences("paper", MODE_PRIVATE) }
     private var cpuWakeLock: PowerManager.WakeLock? = null
+    private var readerWebView: WebView? = null
+    private var readerPageUrl: String = ""
+    private var readerMode: String = ""
+    private var readerReady = false
+    private var readerInFlight = false
+    private val readerPoll = object : Runnable {
+        override fun run() {
+            val reader = readerWebView
+            if (reader != null && readerReady && !readerInFlight) {
+                readerInFlight = true
+                val selectMode = readerMode
+                val selectScript = """(function(){
+                  var wanted = ${org.json.JSONObject.quote(selectMode)};
+                  var norm = function(s){return String(s||'').replace(/\\s+/g,' ').trim().toLowerCase();};
+                  var nodes = Array.from(document.querySelectorAll('[role=tab],button,a,div,span'));
+                  var target = nodes.find(function(el){
+                    var t=norm(el.innerText||el.textContent);
+                    return t && (t===norm(wanted) || (wanted.indexOf('30 Seconds')>=0 && /^(30\\s*(seconds?|secs?|sec|s))$/i.test(t)) || (wanted.indexOf('1 Minute')>=0 && /^(1\\s*(minutes?|mins?|min|m))$/i.test(t)) || (wanted.indexOf('3 Minutes')>=0 && /^(3\\s*(minutes?|mins?|min|m))$/i.test(t)) || (wanted.indexOf('5 Minutes')>=0 && /^(5\\s*(minutes?|mins?|min|m))$/i.test(t)));
+                  });
+                  if(target){var cls=String(target.className||''); if(target.getAttribute('aria-selected')!=='true' && !/(active|selected|current)/i.test(cls)) target.click();}
+                  return true;
+                })()""";
+                reader.evaluateJavascript(selectScript, null)
+                reader.evaluateJavascript(BdgHistoryReader.HISTORY_READER_JS) { raw ->
+                    readerInFlight = false
+                    if (!raw.isNullOrBlank() && raw != "null") process(raw)
+                }
+            }
+            main.postDelayed(this, 3000L)
+        }
+    }
     @Volatile private var predictionSendInFlight = false
 
     override fun onCreate() {
@@ -41,10 +72,10 @@ class BackgroundMonitorService : Service() {
             android.util.Log.e("BackgroundMonitor", "Could not acquire partial wake lock", e)
             updateMonitorDiagnostic("Battery keep-awake unavailable: " + (e.localizedMessage ?: "permission/system error"))
         }
-        // History is read only by MainActivity's selected, authenticated WebView.
-        // A second service WebView starts on the login route and reports WAIT_BINGO;
-        // it cannot know which game/tab the user selected. The service only processes
-        // validated history snapshots forwarded by MainActivity.
+        // Create a service-owned read-only WebView. It shares this app's WebView cookie
+        // and DOM-storage profile, then restores the last selected game tab reported by
+        // the visible Activity. This lets polling continue when the Activity is hidden.
+        createHistoryReader()
         SessionScheduler.scheduleAll(this)
     }
 
@@ -52,9 +83,63 @@ class BackgroundMonitorService : Service() {
         if (intent?.action == ACTION_STOP) { stopSelf(); return START_NOT_STICKY }
         if (intent?.action == ACTION_HISTORY_UPDATE) {
             val snapshot = intent.getStringExtra(EXTRA_HISTORY_JSON)
+            val url = intent.getStringExtra(EXTRA_PAGE_URL).orEmpty()
+            val mode = intent.getStringExtra(EXTRA_SELECTED_MODE).orEmpty()
+            if (url.startsWith("https://bdgwin", ignoreCase = true)) configureHistoryReader(url, mode)
             if (!snapshot.isNullOrBlank()) process(snapshot)
         }
         return START_STICKY
+    }
+
+
+    private fun createHistoryReader() {
+        main.post {
+            if (readerWebView != null) return@post
+            readerWebView = WebView(applicationContext).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.loadsImagesAutomatically = false
+                settings.blockNetworkImage = true
+                settings.javaScriptCanOpenWindowsAutomatically = false
+                settings.setSupportMultipleWindows(false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+                }
+                webChromeClient = WebChromeClient()
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        readerReady = false
+                        updateMonitorDiagnostic("Background reader: BDG पेज लोड हो रहा है")
+                    }
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        readerReady = true
+                        view?.evaluateJavascript(BdgHistoryReader.NETWORK_HISTORY_HOOK_JS, null)
+                        updateMonitorDiagnostic("Background reader: पेज खुला • History पढ़ना शुरू")
+                    }
+                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                        if (request?.isForMainFrame == true) {
+                            readerReady = false
+                            updateMonitorDiagnostic("Background reader page error: " + (error?.description ?: "load failed"))
+                        }
+                    }
+                }
+            }
+            main.removeCallbacks(readerPoll)
+            main.post(readerPoll)
+            if (readerPageUrl.isNotBlank()) readerWebView?.loadUrl(readerPageUrl)
+        }
+    }
+
+    private fun configureHistoryReader(url: String, mode: String) {
+        main.post {
+            readerMode = mode
+            if (readerWebView == null) createHistoryReader()
+            if (readerPageUrl != url) {
+                readerPageUrl = url
+                readerReady = false
+                readerWebView?.loadUrl(url)
+            }
+        }
     }
 
     private fun process(raw: String) {
@@ -261,6 +346,15 @@ class BackgroundMonitorService : Service() {
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         try {
+            readerWebView?.stopLoading()
+            readerWebView?.loadUrl("about:blank")
+            readerWebView?.removeAllViews()
+            readerWebView?.destroy()
+            readerWebView = null
+        } catch (e: Exception) {
+            android.util.Log.w("BackgroundMonitor", "Reader WebView cleanup failed", e)
+        }
+        try {
             cpuWakeLock?.let { if (it.isHeld) it.release() }
         } catch (e: Exception) {
             android.util.Log.w("BackgroundMonitor", "Wake lock release failed", e)
@@ -273,6 +367,8 @@ class BackgroundMonitorService : Service() {
         const val ACTION_STOP="com.annukumar.team.STOP_MONITOR"
         const val ACTION_HISTORY_UPDATE="com.annukumar.team.HISTORY_UPDATE"
         const val EXTRA_HISTORY_JSON="history_json"
+        const val EXTRA_PAGE_URL="page_url"
+        const val EXTRA_SELECTED_MODE="selected_mode"
         private const val CHANNEL="annu_background_monitor"
         fun start(context:Context) {
             val i=Intent(context,BackgroundMonitorService::class.java)
