@@ -212,7 +212,10 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(2))
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
-        predictionView = label("अनुमान: डेटा का इंतज़ार", 17f).apply { setTextColor(accent) }
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 21f).apply {
+            setTextColor(Color.rgb(24, 201, 151))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
         historyView = label("हाल के नतीजे: —", 12f).apply { setTextColor(muted) }
         telegramDiagnosticView = label("Telegram: मॉनिटर स्थिति जाँची जा रही है…", 12f).apply { setTextColor(Color.rgb(255, 193, 7)) }
@@ -222,8 +225,9 @@ class MainActivity : Activity() {
         panelBody.addView(historyView)
         panelBody.addView(telegramDiagnosticView)
         floatingPanel.addView(panelBody)
-        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
-        lp.setMargins(dp(8), 0, dp(8), dp(8))
+        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP)
+        // Keep the live dashboard at the top so BDG betting controls near the bottom stay visible.
+        lp.setMargins(dp(8), dp(6), dp(8), 0)
         dashboard.addView(floatingPanel, lp)
         floatingPanel.bringToFront()
     }
