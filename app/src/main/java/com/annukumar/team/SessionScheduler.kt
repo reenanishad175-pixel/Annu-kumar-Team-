@@ -149,19 +149,31 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         val date = intent.getStringExtra("session_date") ?: java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
         val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
         if (date != today) return
-        if (kind == "WAIT" && context.getSharedPreferences("paper", Context.MODE_PRIVATE)
-                .getBoolean("session_first_signal_" + date + "_" + hour, false)) return
-        val time = String.format("%02d:00", hour)
-        val title = if (kind == "READY") "ANNU KUMAR TEAM" else "SESSION UPDATE"
-        val message = if (kind == "READY") {
-            "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
-        } else {
-            "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
+        val prefs = context.getSharedPreferences("paper", Context.MODE_PRIVATE)
+        if (kind == "WAIT" && prefs.getBoolean("session_first_signal_" + date + "_" + hour, false)) return
+
+        // START is only a checkpoint: do not announce a delay at the session start.
+        // Give the monitor 15 minutes to deliver its first successful prediction.
+        if (kind == "START") {
+            SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
+            return
         }
-        SessionScheduler.show(context, title, message)
-        SessionScheduler.sendTelegram(context, message)
-        if (kind == "READY") SessionScheduler.rescheduleOne(context, hour, "READY")
-        else SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
+
+        val time = String.format("%02d:00", hour)
+        if (kind == "READY") {
+            val message = "🔥 ARE YOU READY? आज का सेशन " + time + " बजे शुरू होगा। सभी तैयार रहें!"
+            SessionScheduler.show(context, "ANNU KUMAR TEAM", message)
+            SessionScheduler.sendTelegram(context, message)
+            SessionScheduler.rescheduleOne(context, hour, "READY")
+        } else if (kind == "WAIT") {
+            // Re-check immediately before sending; a successful prediction cancels this alarm
+            // and sets the same preference, so a late alarm cannot send a false delay notice.
+            if (prefs.getBoolean("session_first_signal_" + date + "_" + hour, false)) return
+            val message = "SESSION UPDATE\n\nसेशन शुरू होने में तकनीकी देरी हो रही है। कृपया 15 मिनट प्रतीक्षा करें। अपडेट जल्द साझा किया जाएगा।"
+            SessionScheduler.show(context, "SESSION UPDATE", message)
+            SessionScheduler.sendTelegram(context, message)
+            SessionScheduler.scheduleWaitIn15Minutes(context, hour, date)
+        }
     }
 }
 class BootReceiver : BroadcastReceiver() {

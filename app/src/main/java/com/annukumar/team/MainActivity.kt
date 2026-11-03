@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private lateinit var loginTab: Button
     private lateinit var settingsTab: Button
     private var pageReady = false
+    private var historyReadInFlight = false
     private val seenPeriods = LinkedHashSet<String>()
     private val observedRows = mutableListOf<Pair<String, String>>()
 
@@ -62,8 +63,10 @@ class MainActivity : Activity() {
 
     private val pageMonitor = object : Runnable {
         override fun run() {
-            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE) {
+            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE && !isFinishing && !historyReadInFlight) {
+                historyReadInFlight = true
                 web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
@@ -142,6 +145,10 @@ class MainActivity : Activity() {
             isNestedScrollingEnabled = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // Advisory renderer priority while user-enabled monitoring is active.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+            }
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = true
             settings.setSupportMultipleWindows(false)
@@ -205,7 +212,10 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(2))
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
-        predictionView = label("अनुमान: डेटा का इंतज़ार", 17f).apply { setTextColor(accent) }
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 21f).apply {
+            setTextColor(Color.rgb(24, 201, 151))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
         historyView = label("हाल के नतीजे: —", 12f).apply { setTextColor(muted) }
         telegramDiagnosticView = label("Telegram: मॉनिटर स्थिति जाँची जा रही है…", 12f).apply { setTextColor(Color.rgb(255, 193, 7)) }
@@ -215,8 +225,9 @@ class MainActivity : Activity() {
         panelBody.addView(historyView)
         panelBody.addView(telegramDiagnosticView)
         floatingPanel.addView(panelBody)
-        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
-        lp.setMargins(dp(8), 0, dp(8), dp(8))
+        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP)
+        // Keep the live dashboard at the top so BDG betting controls near the bottom stay visible.
+        lp.setMargins(dp(8), dp(6), dp(8), 0)
         dashboard.addView(floatingPanel, lp)
         floatingPanel.bringToFront()
     }
@@ -339,7 +350,7 @@ class MainActivity : Activity() {
                 if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 901)
                 } else {
-                    prefs.edit().putBoolean("bg_stopped", false).apply()
+                    // Do not clear a completed six-level session stop; the next scheduled session resets it.
                     BackgroundMonitorService.start(this@MainActivity)
                     Toast.makeText(this@MainActivity, "Background monitoring started", Toast.LENGTH_LONG).show()
                 }
@@ -484,7 +495,18 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::web.isInitialized) web.onResume()
+        if (::web.isInitialized) {
+            web.onResume()
+            if (pageReady && web.visibility == View.VISIBLE && !historyReadInFlight) {
+                // Use the same in-flight guard as the regular poll so resume cannot
+                // overlap a history read already started by the polling Runnable.
+                historyReadInFlight = true
+                web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
+                    if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {

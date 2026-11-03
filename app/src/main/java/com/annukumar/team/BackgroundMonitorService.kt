@@ -85,9 +85,22 @@ class BackgroundMonitorService : Service() {
             val date = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
             val sessionKey = "$date-$activeHour"
             if (prefs.getString("bg_session","") != sessionKey) {
-                prefs.edit().putString("bg_session",sessionKey).putInt("bg_wins",0).putInt("bg_level",1)
+                prefs.edit().putString("bg_session",sessionKey).putLong("bg_session_started_at",System.currentTimeMillis())
+                    .putInt("bg_wins",0).putInt("bg_level",1).putInt("bg_consecutive_losses",0)
                     .putBoolean("bg_stopped",false).putString("bg_predictions_json","[]")
+                    .putInt("bg_ledger_schema",2)
                     .putString("bg_last_result_period","").putString("bg_last_outcome","—").commit()
+            }
+            // Retire unresolved legacy entries once: old records were not tied to a
+            // session and did not require confirmed Telegram delivery.
+            if (prefs.getInt("bg_ledger_schema",0) < 2) {
+                val oldLedger = org.json.JSONArray(prefs.getString("bg_predictions_json","[]") ?: "[]")
+                for (i in 0 until oldLedger.length()) {
+                    val item = oldLedger.optJSONObject(i) ?: continue
+                    if (item.optString("status") != "RESOLVED") item.put("status","IGNORED")
+                }
+                prefs.edit().putString("bg_predictions_json",oldLedger.toString())
+                    .putInt("bg_level",1).putInt("bg_consecutive_losses",0).putInt("bg_ledger_schema",2).commit()
             }
 
             val predictions = org.json.JSONArray(prefs.getString("bg_predictions_json","[]") ?: "[]")
@@ -97,39 +110,57 @@ class BackgroundMonitorService : Service() {
                 val item = predictions.optJSONObject(i) ?: continue
                 val target = item.optString("period")
                 val pick = item.optString("pick")
-                if (item.optString("status") != "RESOLVED" && pick in listOf("BIG","SMALL")) {
+                // Only resolve predictions confirmed sent by Telegram and belonging to this session.
+                if (item.optString("status") == "SENT" &&
+                    item.optString("sessionKey") == sessionKey &&
+                    pick in listOf("BIG","SMALL")) {
                     val actual = actualByPeriod[target]
                     if (actual in listOf("BIG","SMALL")) {
                         val win = pick == actual
                         item.put("status","RESOLVED").put("actual",actual).put("outcome",if (win) "WIN" else "LOSS")
                         try { resolved.add(Triple(java.math.BigInteger(target), i, if (win) "WIN" else "LOSS")) } catch (_: Exception) {}
-                    } else if (item.optString("status") == "SENDING" &&
-                        System.currentTimeMillis() - item.optLong("createdAt") > 60000L) {
-                        item.put("status","FAILED")
                     }
                 }
             }
             resolved.sortBy { it.first }
             var wins = prefs.getInt("bg_wins",0)
-            var level = prefs.getInt("bg_level",1).coerceIn(1,8)
+            var level = prefs.getInt("bg_level",1).coerceIn(1,6)
+            var stopAtLevelSix = false
             for ((_, index, outcome) in resolved) {
                 val item = predictions.optJSONObject(index) ?: continue
                 val target = item.optString("period")
                 val pick = item.optString("pick")
-                val actual = item.optString("actual")
-                val resolvedLevel = item.optInt("level",level).coerceIn(1,8)
-                if (outcome == "WIN") { wins++; level = 1 } else { level = (level + 1).coerceAtMost(8) }
+                val assignedLevel = item.optInt("level",0)
+                if (assignedLevel != level) {
+                    item.put("status","IGNORED").put("ignoreReason","level_sequence_mismatch")
+                    continue
+                }
+                if (outcome == "WIN") {
+                    wins++
+                    level = 1
+                } else {
+                    if (assignedLevel == 6) stopAtLevelSix = true
+                    level = (assignedLevel + 1).coerceAtMost(6)
+                }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
                 send("RESULT", "🎯 $target\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
+                if (stopAtLevelSix) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
-                .putInt("bg_wins",wins).putInt("bg_level",level).commit()
+                .putInt("bg_wins",wins).putInt("bg_level",level)
+                .putInt("bg_consecutive_losses",if (level == 1) 0 else level - 1)
+                .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelSix).commit()
+            if (stopAtLevelSix) {
+                send("सेशन समाप्त","Level 6 पर लगातार LOSS आया; सेशन रोक दिया गया।")
+                updateMonitorDiagnostic("सेशन Level 6 LOSS के बाद रोका गया")
+                return
+            }
 
             if (wins >= 5) {
                 val promoKey = "bg_promo_sent_" + sessionKey
                 if (!prefs.getBoolean(promoKey, false)) {
                     val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
-                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
+                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–6 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
                     SessionScheduler.sendTelegram(this, "ANNU KUMAR TEAM\n" + promo) { ok, detail ->
                         if (ok) prefs.edit().putBoolean(promoKey, true).commit()
                         else android.util.Log.e("BackgroundMonitor", "Promo Telegram failed: " + detail)
@@ -140,18 +171,8 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार")
                 return
             }
-            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
-            if (level >= 8 && resolved.any { it.third == "LOSS" }) {
-                val lastLoss = resolved.lastOrNull { it.third == "LOSS" }
-                if (lastLoss != null) {
-                    val lossItem = predictions.optJSONObject(lastLoss.second)
-                    if (lossItem?.optInt("level",1) == 8) {
-                        prefs.edit().putBoolean("bg_stopped",true).commit()
-                        send("सेशन समाप्त","Level 8 पर LOSS आया; सुरक्षा के लिए सेशन रोक दिया गया।")
-                        return
-                    }
-                }
-            }
+            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 6 LOSS के बाद रोका गया"); return }
+            
 
             val targetPeriod = newestPeriod.add(java.math.BigInteger.ONE).toString()
             val alreadyRecorded = (0 until predictions.length()).any { i ->
@@ -176,11 +197,11 @@ class BackgroundMonitorService : Service() {
                 smallCount > bigCount -> "SMALL"
                 else -> tail.first()
             }
-            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
+            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,6)
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             val record = JSONObject().put("period",targetPeriod).put("pick",pick)
-                .put("level",currentLevel).put("status","SENDING").put("createdAt",System.currentTimeMillis())
+                .put("level",currentLevel).put("sessionKey",sessionKey).put("status","SENDING").put("createdAt",System.currentTimeMillis())
             predictions.put(record)
             // Commit the target reservation before the network call: duplicate snapshots cannot send it twice.
             if (!prefs.edit().putString("bg_predictions_json",predictions.toString()).commit()) {

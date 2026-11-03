@@ -1,12 +1,16 @@
 name: Build Annu Kumar Team APK
 
 on:
+  pull_request:
+    branches:
+      - feature/full-android-app
   workflow_dispatch:
   push:
     branches:
       - main
       - master
       - feature/full-android-app
+      - fix/background-monitoring-review
 
 permissions:
   contents: read
