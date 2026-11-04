@@ -14,6 +14,8 @@ import android.graphics.Color
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
@@ -214,9 +216,9 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(2))
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
-        predictionView = label("अनुमान: डेटा का इंतज़ार", 24f).apply {
-            // Keep all dashboard text in its existing color; only BIG/SMALL is highlighted below.
-            setTextColor(white)
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 12f).apply {
+            // Supporting details are compact green; only BIG/SMALL is emphasized red.
+            setTextColor(Color.rgb(39, 211, 175))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
@@ -285,6 +287,8 @@ class MainActivity : Activity() {
                     pickStart + pick.length,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
+                styledLine.setSpan(RelativeSizeSpan(2.0f), pickStart, pickStart + pick.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                styledLine.setSpan(StyleSpan(android.graphics.Typeface.BOLD), pickStart, pickStart + pick.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             predictionView.text = styledLine
         } else {
