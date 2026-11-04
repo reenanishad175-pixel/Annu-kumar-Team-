@@ -276,14 +276,31 @@ class MainActivity : Activity() {
         // Dashboard preview mirrors the eight active patterns and the service's
         // three-SKIP cooldown after a missed Three Trend prediction.
         val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
-        val trendSkipRemaining = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
-        val now = Calendar.getInstance()
-        val activeHour = intArrayOf(10,15,18,21).lastOrNull { it <= now.get(Calendar.HOUR_OF_DAY) } ?: 10
-        val dateKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(now.time)
-        val sessionKey = "$dateKey-$activeHour"
-        val currentPeriodWasSkipped = prefs.getBoolean("bg_trend_skip_done_${sessionKey}_${targetPeriod}", false)
-        // The third skipped period has remaining=0 but must still display SKIP.
-        val isTrendCooldownActive = trendSkipRemaining > 0 || currentPeriodWasSkipped
+        // Dashboard cooldown is deliberately independent from Telegram's five-message sessions.
+        val dashboardState = DashboardTrendSkipTracker.State(
+            pendingPeriod = prefs.getString("dash_trend_pending_period", "").orEmpty(),
+            pendingPick = prefs.getString("dash_trend_pending_pick", "").orEmpty(),
+            pendingStrategy = prefs.getString("dash_trend_pending_strategy", "").orEmpty(),
+            skipRemaining = prefs.getInt("dash_trend_skip_remaining", 0),
+            lastSkippedPeriod = prefs.getString("dash_trend_last_skipped_period", "").orEmpty(),
+            lastSkipNumber = prefs.getInt("dash_trend_last_skip_number", 0)
+        )
+        val dashboardSkip = DashboardTrendSkipTracker.update(
+            newestFirstRows = orderedRows,
+            targetPeriod = targetPeriod,
+            previous = dashboardState,
+            previewSignal = preview.signal,
+            previewStrategy = preview.strategy
+        )
+        prefs.edit()
+            .putString("dash_trend_pending_period", dashboardSkip.state.pendingPeriod)
+            .putString("dash_trend_pending_pick", dashboardSkip.state.pendingPick)
+            .putString("dash_trend_pending_strategy", dashboardSkip.state.pendingStrategy)
+            .putInt("dash_trend_skip_remaining", dashboardSkip.state.skipRemaining)
+            .putString("dash_trend_last_skipped_period", dashboardSkip.state.lastSkippedPeriod)
+            .putInt("dash_trend_last_skip_number", dashboardSkip.state.lastSkipNumber)
+            .apply()
+        val isTrendCooldownActive = dashboardSkip.skipThisPeriod
         val pick = if (isTrendCooldownActive) null else preview.signal
         if (pick != null) {
             val predictionLine = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
@@ -302,7 +319,7 @@ class MainActivity : Activity() {
             predictionView.text = styledLine
         } else {
             val skipReason = if (isTrendCooldownActive)
-                "Three Trend LOSS cooldown • ${if (trendSkipRemaining > 0) "$trendSkipRemaining SKIP बाकी" else "इस Period पर तीसरा SKIP"}"
+                "Three Trend LOSS • Dashboard SKIP ${dashboardSkip.skipNumber}/3 • ${dashboardSkip.skipRemainingAfterThisPeriod} बाकी"
             else preview.reason
             predictionView.text = "अगला Period: $targetPeriod  •  SKIP: $skipReason  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }

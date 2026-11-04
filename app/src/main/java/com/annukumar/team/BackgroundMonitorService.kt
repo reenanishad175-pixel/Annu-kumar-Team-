@@ -235,15 +235,24 @@ class BackgroundMonitorService : Service() {
                 val item = predictions.optJSONObject(i) ?: continue
                 val target = item.optString("period")
                 val pick = item.optString("pick")
-                // Only resolve predictions confirmed sent by Telegram and belonging to this session.
-                if (item.optString("status") == "SENT" &&
-                    item.optString("sessionKey") == sessionKey &&
-                    pick in listOf("BIG","SMALL")) {
-                    val actual = actualByPeriod[target]
-                    if (actual in listOf("BIG","SMALL")) {
-                        val win = pick == actual
-                        item.put("status","RESOLVED").put("actual",actual).put("outcome",if (win) "WIN" else "LOSS")
-                        try { resolved.add(Triple(java.math.BigInteger(target), i, if (win) "WIN" else "LOSS")) } catch (_: Exception) {}
+                // Preserve a result that arrives while Telegram is still confirming delivery.
+                // BDG history is a rolling 10-row window; without this pending value a slow
+                // Telegram callback could let the result disappear before the next poll.
+                if (item.optString("sessionKey") == sessionKey && pick in listOf("BIG","SMALL")) {
+                    val decision = PredictionOutcomeGate.evaluate(
+                        status = item.optString("status"),
+                        pick = pick,
+                        historyActual = actualByPeriod[target],
+                        previouslyObservedActual = item.optString("observedActual").takeIf { it in listOf("BIG","SMALL") }
+                    )
+                    decision.observedActual?.let { item.put("observedActual", it) }
+                    if (decision.status == "RESOLVED" && decision.resolvedActual != null && decision.outcome != null) {
+                        item.put("status","RESOLVED")
+                            .put("actual",decision.resolvedActual)
+                            .put("outcome",decision.outcome)
+                        try { resolved.add(Triple(java.math.BigInteger(target), i, decision.outcome)) } catch (_: Exception) {}
+                    } else if (item.optString("status") == "SENDING" && decision.observedActual != null) {
+                        updateMonitorDiagnostic("Period $target का रिज़ल्ट सुरक्षित रखा • Telegram delivery की पुष्टि का इंतज़ार")
                     }
                 }
             }
