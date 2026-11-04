@@ -1,10 +1,8 @@
 package com.annukumar.team
 
 /**
- * History is newest-first. Strategy 1 searches the latest SIX verified periods
- * (its three-result signature may occur anywhere in that six-period window).
- * Strategies 2-4 compare only the latest THREE periods. A match from ANY
- * strategy is a valid signal; SKIP is returned only when none match.
+ * History is newest-first. Every strategy checks exactly the latest THREE
+ * verified periods. If none of the four exact signatures matches, return SKIP.
  */
 object PatternAnalyzer {
     data class Summary(
@@ -20,53 +18,47 @@ object PatternAnalyzer {
     private data class Strategy(
         val name: String,
         val pattern: List<String>,
-        val signal: String,
-        val lookback: Int
+        val signal: String
     )
 
-    // Preserve the four existing signatures and apply independent 6/3/3/3 windows.
+    // All four strategies use exactly the same three-period lookback.
     private val strategies = listOf(
-        Strategy("STRATEGY_1", listOf("SMALL", "BIG", "BIG"), "SMALL", 6),
-        Strategy("STRATEGY_2", listOf("SMALL", "SMALL", "BIG"), "BIG", 3),
-        Strategy("STRATEGY_3", listOf("BIG", "SMALL", "SMALL"), "BIG", 3),
-        Strategy("STRATEGY_4", listOf("BIG", "BIG", "SMALL"), "SMALL", 3)
+        Strategy("STRATEGY_1", listOf("SMALL", "BIG", "BIG"), "SMALL"),
+        Strategy("STRATEGY_2", listOf("SMALL", "SMALL", "BIG"), "BIG"),
+        Strategy("STRATEGY_3", listOf("BIG", "SMALL", "SMALL"), "BIG"),
+        Strategy("STRATEGY_4", listOf("BIG", "BIG", "SMALL"), "SMALL")
     )
 
     fun analyzeNewestFirst(rawValues: List<String>): Summary {
         val values = rawValues.map { it.trim().uppercase() }
             .filter { it == "BIG" || it == "SMALL" }
+            .take(3)
         val big = values.count { it == "BIG" }
         val small = values.size - big
-        val latestThree = values.take(3)
+        val latestThree = values
 
-        val matched = strategies.firstOrNull { strategy ->
-            if (values.size < strategy.lookback) return@firstOrNull false
-            val window = values.take(strategy.lookback)
-            if (strategy.lookback == strategy.pattern.size) {
-                window == strategy.pattern
-            } else {
-                // Strategy 1 checks every consecutive 3-result signature within
-                // the latest 6 verified periods.
-                window.windowed(strategy.pattern.size).any { it == strategy.pattern }
-            }
+        if (values.size < 3) {
+            return Summary(
+                null,
+                "सत्यापित परिणाम केवल ${values.size} मिले; 3 चाहिए • SKIP",
+                big, small, values.size, "SKIP", latestThree
+            )
         }
 
+        val matched = strategies.firstOrNull { it.pattern == latestThree }
         if (matched != null) {
             return Summary(
                 matched.signal,
-                "${matched.name} मैच हुई • ${matched.lookback} पीरियड विंडो",
+                "${matched.name} मैच हुई • केवल 3 पीरियड",
                 big, small, values.size, matched.name, latestThree
             )
         }
 
-        val reason = if (values.size < 3) {
-            "सत्यापित परिणाम कम हैं: कम-से-कम 3 चाहिए"
-        } else if (values.size < 6) {
-            "Strategy 1 के लिए 6 पीरियड पूरे नहीं; बाकी तीन में पैटर्न मैच नहीं हुआ"
-        } else {
-            "चारों रणनीतियों में कोई पैटर्न मैच नहीं हुआ; latest 6: ${values.take(6).joinToString(" / ")}; SKIP"
-        }
-        return Summary(null, reason, big, small, values.size, "SKIP", latestThree)
+        return Summary(
+            null,
+            "तीन पीरियड में किसी भी रणनीति का पैटर्न मैच नहीं हुआ • SKIP",
+            big, small, values.size, "SKIP", latestThree
+        )
     }
 
     /** Backward-compatible parser: raw text is interpreted as newest-first. */
