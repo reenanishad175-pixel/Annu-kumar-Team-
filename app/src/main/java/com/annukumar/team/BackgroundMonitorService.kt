@@ -323,15 +323,15 @@ class BackgroundMonitorService : Service() {
             }
             val trendSkipMarker = "bg_trend_skip_done_${sessionKey}_${targetPeriod}"
             val pendingTrendSkips = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
-            if (prefs.getBoolean(trendSkipMarker,false)) {
-                updateMonitorDiagnostic("TREND RULE • Period $targetPeriod पहले ही SKIP किया गया")
-                return
-            }
-            if (pendingTrendSkips > 0) {
-                val left = pendingTrendSkips - 1
-                if (!prefs.edit().putInt("bg_trend_skip_remaining",left).putBoolean(trendSkipMarker,true).commit()) {
-                    updateMonitorDiagnostic("TREND SKIP रिकॉर्ड सेव नहीं हुआ • prediction नहीं भेजी गई")
-                    return
+            val trendSkipAlreadyConsumed = prefs.getBoolean(trendSkipMarker,false)
+            if (pendingTrendSkips > 0 || trendSkipAlreadyConsumed) {
+                // Consume once per target period; keep retrying Telegram delivery until confirmed.
+                val left = if (trendSkipAlreadyConsumed) pendingTrendSkips else pendingTrendSkips - 1
+                if (!trendSkipAlreadyConsumed) {
+                    if (!prefs.edit().putInt("bg_trend_skip_remaining",left).putBoolean(trendSkipMarker,true).commit()) {
+                        updateMonitorDiagnostic("TREND SKIP रिकॉर्ड सेव नहीं हुआ • prediction नहीं भेजी गई")
+                        return
+                    }
                 }
                 sendSkipOnce(targetPeriod,mode,sessionKey,"Three Trend prediction LOSS हुई • अगली 3 predictions में से यह SKIP ($left बाकी)")
                 return
