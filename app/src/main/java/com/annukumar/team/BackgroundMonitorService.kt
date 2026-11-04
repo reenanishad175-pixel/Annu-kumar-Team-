@@ -211,6 +211,7 @@ class BackgroundMonitorService : Service() {
             if (prefs.getString("bg_session","") != sessionKey) {
                 prefs.edit().putString("bg_session",sessionKey).putLong("bg_session_started_at",System.currentTimeMillis())
                     .putInt("bg_wins",0).putInt("bg_level",1).putInt("bg_consecutive_losses",0)
+                    .putInt("bg_trend_skip_remaining",0)
                     .putBoolean("bg_stopped",false).putString("bg_predictions_json","[]")
                     .putInt("bg_ledger_schema",2)
                     .putString("bg_last_result_period","").putString("bg_last_outcome","—").commit()
@@ -250,12 +251,14 @@ class BackgroundMonitorService : Service() {
             var wins = prefs.getInt("bg_wins",0)
             var level = prefs.getInt("bg_level",1).coerceIn(1,8)
             var consecutiveLosses = prefs.getInt("bg_consecutive_losses",0).coerceIn(0,8)
+            var trendSkipRemaining = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
             var stopAtLevelEight = false
             for ((_, index, outcome) in resolved) {
                 val item = predictions.optJSONObject(index) ?: continue
                 val target = item.optString("period")
                 val pick = item.optString("pick")
                 val assignedLevel = item.optInt("level",0)
+                val strategyName = item.optString("strategy","")
                 if (assignedLevel != level) {
                     item.put("status","IGNORED").put("ignoreReason","level_sequence_mismatch")
                     continue
@@ -266,6 +269,7 @@ class BackgroundMonitorService : Service() {
                     level = 1
                 } else {
                     consecutiveLosses++
+                    if (strategyName.startsWith("TREND_BASE_")) trendSkipRemaining = 3
                     if (consecutiveLosses >= 8) stopAtLevelEight = true
                     level = (assignedLevel + 1).coerceAtMost(8)
                 }
@@ -277,6 +281,7 @@ class BackgroundMonitorService : Service() {
             prefs.edit().putString("bg_predictions_json",predictions.toString())
                 .putInt("bg_wins",wins).putInt("bg_level",level)
                 .putInt("bg_consecutive_losses",consecutiveLosses)
+                .putInt("bg_trend_skip_remaining",trendSkipRemaining)
                 .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelEight).commit()
             if (stopAtLevelEight) {
                 send("सेशन समाप्त","लगातार 8 LOSS होने के कारण सेशन रोक दिया गया। हमें खेद है।")
@@ -311,6 +316,21 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Period $targetPeriod की prediction पहले से सेव है • अगली history का इंतज़ार")
                 return
             }
+            val trendSkipMarker = "bg_trend_skip_done_${sessionKey}_${targetPeriod}"
+            val pendingTrendSkips = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
+            if (prefs.getBoolean(trendSkipMarker,false)) {
+                updateMonitorDiagnostic("TREND RULE • Period $targetPeriod पहले ही SKIP किया गया")
+                return
+            }
+            if (pendingTrendSkips > 0) {
+                val left = pendingTrendSkips - 1
+                if (!prefs.edit().putInt("bg_trend_skip_remaining",left).putBoolean(trendSkipMarker,true).commit()) {
+                    updateMonitorDiagnostic("TREND SKIP रिकॉर्ड सेव नहीं हुआ • prediction नहीं भेजी गई")
+                    return
+                }
+                sendSkipOnce(targetPeriod,mode,sessionKey,"Three Trend prediction LOSS हुई • अगली 3 predictions में से यह SKIP ($left बाकी)")
+                return
+            }
             val history = orderedRows.take(3).map { it.second.optString("size").uppercase(Locale.ROOT) }
             if (history.size < 3) {
                 val reason = "केवल ${history.size} सत्यापित परिणाम मिले"
@@ -327,7 +347,8 @@ class BackgroundMonitorService : Service() {
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             val record = JSONObject().put("period",targetPeriod).put("pick",pick)
-                .put("level",currentLevel).put("mode",mode).put("sessionKey",sessionKey).put("status","SENDING").put("createdAt",System.currentTimeMillis())
+                .put("strategy",analysis.strategy ?: "").put("level",currentLevel).put("mode",mode)
+                .put("sessionKey",sessionKey).put("status","SENDING").put("createdAt",System.currentTimeMillis())
             predictions.put(record)
             // Commit the target reservation before the network call: duplicate snapshots cannot send it twice.
             if (!prefs.edit().putString("bg_predictions_json",predictions.toString()).commit()) {
