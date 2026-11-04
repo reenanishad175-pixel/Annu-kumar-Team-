@@ -11,6 +11,9 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.graphics.Color
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
@@ -212,8 +215,8 @@ class MainActivity : Activity() {
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
         predictionView = label("अनुमान: डेटा का इंतज़ार", 24f).apply {
-            // Bright red with strong contrast against the dark dashboard.
-            setTextColor(Color.rgb(255, 82, 82))
+            // Keep all dashboard text in its existing color; only BIG/SMALL is highlighted below.
+            setTextColor(white)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
@@ -247,8 +250,6 @@ class MainActivity : Activity() {
     }
 
     private fun updateDashboard(mode: String, rows: List<Pair<String, String>>) {
-        // Re-apply the visible prediction color on every refresh.
-        predictionView.setTextColor(Color.rgb(255, 82, 82))
         // Always order by numeric period, not DOM position: highest period is newest.
         val orderedRows = rows.sortedByDescending {
             try { java.math.BigInteger(it.first) } catch (_: Exception) { java.math.BigInteger.ZERO }
@@ -273,10 +274,21 @@ class MainActivity : Activity() {
         // No last-10 frequency/majority fallback is permitted.
         val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
         val pick = preview.signal
-        predictionView.text = if (pick != null) {
-            "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
+        if (pick != null) {
+            val predictionLine = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
+            val styledLine = SpannableStringBuilder(predictionLine)
+            val pickStart = predictionLine.indexOf(pick, predictionLine.indexOf("अनुमान:"))
+            if (pickStart >= 0) {
+                styledLine.setSpan(
+                    ForegroundColorSpan(Color.rgb(255, 82, 82)),
+                    pickStart,
+                    pickStart + pick.length,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            predictionView.text = styledLine
         } else {
-            "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
+            predictionView.text = "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
