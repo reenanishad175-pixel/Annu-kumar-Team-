@@ -81,7 +81,6 @@ class MainActivity : Activity() {
         window.navigationBarColor = navy
         window.decorView.systemUiVisibility = 0
         setContentView(buildScreen())
-        SessionScheduler.scheduleAll(this)
         showLogin()
         if (savedInstanceState == null) web.loadUrl(bdgUrl)
         handler.postDelayed(pageMonitor, 2500)
