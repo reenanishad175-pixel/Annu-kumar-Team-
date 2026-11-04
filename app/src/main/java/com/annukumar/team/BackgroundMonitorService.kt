@@ -258,7 +258,18 @@ class BackgroundMonitorService : Service() {
                 val target = item.optString("period")
                 val pick = item.optString("pick")
                 val assignedLevel = item.optInt("level",0)
-                val strategyName = item.optString("strategy","")
+                val strategyName = item.optString("strategy","").trim().uppercase(Locale.ROOT)
+
+                // Trend cooldown is a period-safety rule, not a level-progression rule.
+                // A confirmed miss must activate it even if an older ledger entry has a
+                // level mismatch; previously the early-continue below silently bypassed
+                // the cooldown and caused the exact "no SKIP after trend LOSS" symptom.
+                val isTrendBase = strategyName == "TREND_BASE_BIG" || strategyName == "TREND_BASE_SMALL"
+                if (outcome == "LOSS" && isTrendBase) {
+                    trendSkipRemaining = 3
+                    updateMonitorDiagnostic("TREND BASE LOSS confirmed • Period $target • अगले 3 Period SKIP queue में")
+                }
+
                 if (assignedLevel != level) {
                     item.put("status","IGNORED").put("ignoreReason","level_sequence_mismatch")
                     continue
@@ -269,12 +280,6 @@ class BackgroundMonitorService : Service() {
                     level = 1
                 } else {
                     consecutiveLosses++
-                    if (strategyName == "TREND_BASE_BIG" || strategyName == "TREND_BASE_SMALL") {
-                        // Start cooldown only after the matching Three Trend prediction is confirmed LOSS.
-                        // BBB -> BIG miss (actual SMALL); SSS -> SMALL miss (actual BIG).
-                        // Both reserve exactly the next three target periods as SKIP.
-                        trendSkipRemaining = 3
-                    }
                     if (consecutiveLosses >= 8) stopAtLevelEight = true
                     level = (assignedLevel + 1).coerceAtMost(8)
                 }
