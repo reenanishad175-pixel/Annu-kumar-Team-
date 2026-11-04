@@ -1,9 +1,8 @@
 package com.annukumar.team
 
 /**
- * History is newest-first. Every strategy checks exactly the latest THREE
- * verified periods. All four strategies (eight signatures including opposites)
- * are evaluated; if none matches, return SKIP.
+ * History is newest-first. Strategies 1–6 remain active exactly as before.
+ * Strategies 7 and 8 are deliberately disabled; unmatched history returns SKIP.
  */
 object PatternAnalyzer {
     data class Summary(
@@ -22,8 +21,7 @@ object PatternAnalyzer {
         val signal: String
     )
 
-    // Four strategies, each with its two explicitly defined opposite signatures.
-    // Keep the list complete: 8 cases total, all evaluated against exactly 3 periods.
+    // Keep strategies 1–6 unchanged. Strategies 7 and 8 are intentionally omitted.
     private val strategies = listOf(
         // 1. One by One
         Strategy("ONE_BY_ONE_BIG_SMALL_BIG", listOf("BIG", "SMALL", "BIG"), "SMALL"),
@@ -37,9 +35,6 @@ object PatternAnalyzer {
         Strategy("STRATEGY_THREE_SMALL_BIG_BIG", listOf("SMALL", "BIG", "BIG"), "SMALL"),
         Strategy("STRATEGY_THREE_BIG_SMALL_SMALL", listOf("BIG", "SMALL", "SMALL"), "BIG"),
 
-        // 4. Fourth strategy
-        Strategy("STRATEGY_FOUR_SMALL_SMALL_BIG", listOf("SMALL", "SMALL", "BIG"), "BIG"),
-        Strategy("STRATEGY_FOUR_BIG_BIG_SMALL", listOf("BIG", "BIG", "SMALL"), "SMALL")
     )
 
     fun analyzeNewestFirst(rawValues: List<String>): Summary {
@@ -69,7 +64,7 @@ object PatternAnalyzer {
 
         return Summary(
             null,
-            "तीन पीरियड में किसी भी 8 पैटर्न का मैच नहीं हुआ • SKIP",
+            "तीन पीरियड में किसी भी सक्रिय पैटर्न (1–6) का मैच नहीं हुआ • SKIP",
             big, small, values.size, "SKIP", latestThree
         )
     }
