@@ -209,8 +209,8 @@ class BackgroundMonitorService : Service() {
             }
             resolved.sortBy { it.first }
             var wins = prefs.getInt("bg_wins",0)
-            var level = prefs.getInt("bg_level",1).coerceIn(1,6)
-            var stopAtLevelSix = false
+            var level = prefs.getInt("bg_level",1).coerceIn(1,8)
+            var stopAtLevelEight = false
             for ((_, index, outcome) in resolved) {
                 val item = predictions.optJSONObject(index) ?: continue
                 val target = item.optString("period")
@@ -224,20 +224,20 @@ class BackgroundMonitorService : Service() {
                     wins++
                     level = 1
                 } else {
-                    if (assignedLevel == 6) stopAtLevelSix = true
-                    level = (assignedLevel + 1).coerceAtMost(6)
+                    if (assignedLevel == 8) stopAtLevelEight = true
+                    level = (assignedLevel + 1).coerceAtMost(8)
                 }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
                 send("RESULT", "🎯 $target\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
-                if (stopAtLevelSix) break
+                if (stopAtLevelEight) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
                 .putInt("bg_wins",wins).putInt("bg_level",level)
                 .putInt("bg_consecutive_losses",if (level == 1) 0 else level - 1)
-                .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelSix).commit()
-            if (stopAtLevelSix) {
-                send("सेशन समाप्त","Level 6 पर लगातार LOSS आया; सेशन रोक दिया गया।")
-                updateMonitorDiagnostic("सेशन Level 6 LOSS के बाद रोका गया")
+                .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelEight).commit()
+            if (stopAtLevelEight) {
+                send("सेशन समाप्त","Level 8 पर लगातार LOSS आया; सेशन रोक दिया गया।")
+                updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया")
                 return
             }
 
@@ -245,7 +245,7 @@ class BackgroundMonitorService : Service() {
                 val promoKey = "bg_promo_sent_" + sessionKey
                 if (!prefs.getBoolean(promoKey, false)) {
                     val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
-                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–6 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
+                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
                     SessionScheduler.sendTelegram(this, "ANNU KUMAR TEAM\n" + promo) { ok, detail ->
                         if (ok) prefs.edit().putBoolean(promoKey, true).commit()
                         else android.util.Log.e("BackgroundMonitor", "Promo Telegram failed: " + detail)
@@ -256,7 +256,7 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार")
                 return
             }
-            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 6 LOSS के बाद रोका गया"); return }
+            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 8 LOSS के बाद रोका गया"); return }
             
 
             val targetPeriod = newestPeriod.add(java.math.BigInteger.ONE).toString()
@@ -268,21 +268,21 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Period $targetPeriod की prediction पहले से सेव है • अगली history का इंतज़ार")
                 return
             }
-            val history = orderedRows.take(10).map { it.second.optString("size").uppercase(Locale.ROOT) }
-            if (history.size < 3) { updateMonitorDiagnostic("Service reader: only " + history.size + " valid results"); return }
-            val tail = history.take(3)
-            val bigCount = history.count { it == "BIG" }
-            val smallCount = history.count { it == "SMALL" }
-            val pick = when {
-                tail.all { it == "BIG" } -> "BIG"
-                tail.all { it == "SMALL" } -> "SMALL"
-                tail[0] == "BIG" && tail[1] == "SMALL" && tail[2] == "BIG" -> "SMALL"
-                tail[0] == "SMALL" && tail[1] == "BIG" && tail[2] == "SMALL" -> "BIG"
-                bigCount > smallCount -> "BIG"
-                smallCount > bigCount -> "SMALL"
-                else -> tail.first()
+            val history = orderedRows.take(6).map { it.second.optString("size").uppercase(Locale.ROOT) }
+            if (history.size < 3) {
+                val reason = "केवल ${history.size} सत्यापित परिणाम मिले"
+                updateMonitorDiagnostic("SKIP • $reason")
+                send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: $reason")
+                return
             }
-            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,6)
+            val analysis = PatternAnalyzer.analyzeNewestFirst(history)
+            val pick = analysis.signal
+            if (pick == null) {
+                updateMonitorDiagnostic("SKIP • ${analysis.reason}")
+                send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: ${analysis.reason}")
+                return
+            }
+            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             val record = JSONObject().put("period",targetPeriod).put("pick",pick)
