@@ -272,15 +272,13 @@ class BackgroundMonitorService : Service() {
             val history = orderedRows.take(6).map { it.second.optString("size").uppercase(Locale.ROOT) }
             if (history.size < 3) {
                 val reason = "केवल ${history.size} सत्यापित परिणाम मिले"
-                updateMonitorDiagnostic("SKIP • $reason")
-                send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: $reason")
+                sendSkipOnce(targetPeriod, mode, sessionKey, reason)
                 return
             }
             val analysis = PatternAnalyzer.analyzeNewestFirst(history)
             val pick = analysis.signal
             if (pick == null) {
-                updateMonitorDiagnostic("SKIP • ${analysis.reason}")
-                send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: ${analysis.reason}")
+                sendSkipOnce(targetPeriod, mode, sessionKey, analysis.reason)
                 return
             }
             val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
@@ -319,6 +317,25 @@ class BackgroundMonitorService : Service() {
             val reason = e.localizedMessage ?: e.javaClass.simpleName
             updateMonitorDiagnostic("Prediction pipeline error: " + reason.take(180))
         }
+    }
+
+    /**
+     * A SKIP is final for a target period. History polls repeatedly,
+     * so persist its key before sending to prevent duplicate Telegram posts.
+     */
+    private fun sendSkipOnce(targetPeriod: String, mode: String, sessionKey: String, reason: String) {
+        val skipKey = "bg_skip_sent_" + sessionKey + "_" + mode + "_" + targetPeriod
+        if (prefs.getBoolean(skipKey, false)) {
+            updateMonitorDiagnostic("SKIP • Period $targetPeriod पहले ही Telegram पर भेजा जा चुका है")
+            return
+        }
+        // Commit before network call so duplicate snapshots cannot send twice.
+        if (!prefs.edit().putBoolean(skipKey, true).commit()) {
+            updateMonitorDiagnostic("SKIP रिकॉर्ड सेव नहीं हुआ • Telegram संदेश नहीं भेजा")
+            return
+        }
+        updateMonitorDiagnostic("SKIP • Period $targetPeriod • $reason")
+        send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: $reason")
     }
 
     private fun updateMonitorDiagnostic(message: String) {
