@@ -12,6 +12,7 @@ on:
       - feature/full-android-app
       - fix/background-monitoring-review
       - feature/service-owned-bdg-reader
+      - feature/fix-trend-skip-188
 
 permissions:
   contents: read
