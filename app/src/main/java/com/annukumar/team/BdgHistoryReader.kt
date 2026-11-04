@@ -128,8 +128,10 @@ const val HISTORY_READER_JS = """(function () {
     if (!txt || txt.length > 420) return;
     var periods = txt.match(/\b[0-9]{8,24}\b/g) || [];
     var sizes = txt.match(/\b(BIG|SMALL)\b/ig) || [];
-    if (periods.length !== 1 || sizes.length !== 1) return;
-    var period = periods[0], size = sizes[0].toUpperCase();
+    if (periods.length !== 1 || sizes.length < 1) return;
+    // Some BDG row layouts repeat the size label in nested badges; the final
+    // visible label is the row's result badge. Do not discard a valid period.
+    var period = periods[0], size = sizes[sizes.length - 1].toUpperCase();
     if (!seen[period]) {
       seen[period] = true;
       found.push({period:period, size:size});
