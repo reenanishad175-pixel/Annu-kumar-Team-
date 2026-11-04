@@ -12,7 +12,8 @@ object PatternAnalyzer {
         val big: Int,
         val small: Int,
         val count: Int,
-        val strategy: String? = null
+        val strategy: String? = null,
+        val latestThree: List<String> = emptyList()
     )
 
     private data class Strategy(
@@ -37,7 +38,7 @@ object PatternAnalyzer {
         val small = values.size - big
 
         if (values.size < 3) {
-            return Summary(null, "कम-से-कम 3 सत्यापित परिणाम चाहिए।", big, small, values.size)
+            return Summary(null, "कम-से-कम 3 सत्यापित परिणाम चाहिए।", big, small, values.size, latestThree = values.take(3))
         }
 
         val latestThree = values.take(3)
@@ -50,17 +51,19 @@ object PatternAnalyzer {
                 big,
                 small,
                 values.size,
-                matched.name
+                matched.name,
+                latestThree
             )
         }
 
         return Summary(
             null,
-            "चारों रणनीतियों में कोई पैटर्न मैच नहीं हुआ; SKIP",
+            "चारों रणनीतियों में कोई पैटर्न मैच नहीं हुआ; latest 3: ${latestThree.joinToString(" / ")}; SKIP",
             big,
             small,
             values.size,
-            "SKIP"
+            "SKIP",
+            latestThree
         )
     }
 
