@@ -212,7 +212,8 @@ class MainActivity : Activity() {
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
         predictionView = label("अनुमान: डेटा का इंतज़ार", 24f).apply {
-            setTextColor(Color.rgb(139, 0, 0))
+            // Bright red with strong contrast against the dark dashboard.
+            setTextColor(Color.rgb(255, 82, 82))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
@@ -246,6 +247,8 @@ class MainActivity : Activity() {
     }
 
     private fun updateDashboard(mode: String, rows: List<Pair<String, String>>) {
+        // Re-apply the visible prediction color on every refresh.
+        predictionView.setTextColor(Color.rgb(255, 82, 82))
         // Always order by numeric period, not DOM position: highest period is newest.
         val orderedRows = rows.sortedByDescending {
             try { java.math.BigInteger(it.first) } catch (_: Exception) { java.math.BigInteger.ZERO }
