@@ -211,8 +211,8 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(2))
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
-        predictionView = label("अनुमान: डेटा का इंतज़ार", 21f).apply {
-            setTextColor(Color.rgb(24, 201, 151))
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 24f).apply {
+            setTextColor(Color.rgb(139, 0, 0))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
