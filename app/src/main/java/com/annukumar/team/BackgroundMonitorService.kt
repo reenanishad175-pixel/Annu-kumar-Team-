@@ -372,7 +372,7 @@ class BackgroundMonitorService : Service() {
             return
         }
         updateMonitorDiagnostic("SKIP • Period $targetPeriod • $reason")
-        send("SKIP", "⏭️ SKIP\\nPeriod: $targetPeriod\\nGame: $mode\\nकारण: $reason")
+        send("SKIP", "⏭️ SKIP\nPeriod: $targetPeriod\nGame: $mode\nकारण: $reason")
     }
 
     private fun updateMonitorDiagnostic(message: String) {
