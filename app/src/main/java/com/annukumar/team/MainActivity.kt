@@ -260,32 +260,22 @@ class MainActivity : Activity() {
             historyView.text = "हाल के नतीजे: —"
             return
         }
-        val big = orderedRows.count { it.second == "BIG" }
-        val small = orderedRows.size - big
         val latestPeriod = orderedRows.first().first
         val targetPeriod = try { java.math.BigInteger(latestPeriod).add(java.math.BigInteger.ONE).toString() } catch (_: Exception) { latestPeriod }
         val latest = orderedRows.first().second
         val streak = orderedRows.takeWhile { it.second == latest }.size
-        val trend = when {
-            big > small -> "BIG अधिक: $big बनाम SMALL $small"
-            small > big -> "SMALL अधिक: $small बनाम BIG $big"
-            else -> "दोनों बराबर: BIG $big / SMALL $small"
+        val big = orderedRows.count { it.second == "BIG" }
+        val small = orderedRows.size - big
+        val trend = "BIG: $big / SMALL: $small"
+        // Dashboard preview uses the same four approved rules as the background sender.
+        // No last-10 frequency/majority fallback is permitted.
+        val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(6).map { it.second })
+        val pick = preview.signal
+        predictionView.text = if (pick != null) {
+            "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}"
+        } else {
+            "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}"
         }
-        val latestThree = orderedRows.take(3).map { it.second }
-        val pick = when {
-            latestThree.size == 3 && latestThree.all { it == "BIG" } -> "BIG"
-            latestThree.size == 3 && latestThree.all { it == "SMALL" } -> "SMALL"
-            latestThree.size == 3 && latestThree[0] != latestThree[1] && latestThree[1] != latestThree[2] -> if (latestThree[2] == "BIG") "SMALL" else "BIG"
-            big > small -> "BIG"
-            small > big -> "SMALL"
-            else -> latest
-        }
-        val confidence = when {
-            orderedRows.size < 5 -> "कम"
-            kotlin.math.abs(big - small) >= 4 -> "मध्यम (सिर्फ पैटर्न-आधारित)"
-            else -> "कम (पैटर्न कमजोर)"
-        }
-        predictionView.text = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  भरोसा: $confidence"
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
 
