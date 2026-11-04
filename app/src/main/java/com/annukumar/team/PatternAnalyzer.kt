@@ -66,7 +66,7 @@ object PatternAnalyzer {
 
     /** Backward-compatible parser: raw text is interpreted as newest-first. */
     fun analyze(raw: String): Summary {
-        val values = raw.split(Regex("[,\\\\s]+"))
+        val values = raw.split(Regex("[,\\s]+"))
             .map { it.trim().uppercase() }
             .filter { it == "BIG" || it == "SMALL" }
         return analyzeNewestFirst(values)
