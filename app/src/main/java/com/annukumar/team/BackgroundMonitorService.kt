@@ -30,6 +30,7 @@ class BackgroundMonitorService : Service() {
     private var readerInFlight = false
     private val readerPoll = object : Runnable {
         override fun run() {
+            checkReadyTelegramReminder()
             val reader = readerWebView
             if (reader != null && readerReady && !readerInFlight) {
                 readerInFlight = true
@@ -76,7 +77,6 @@ class BackgroundMonitorService : Service() {
         // and DOM-storage profile, then restores the last selected game tab reported by
         // the visible Activity. This lets polling continue when the Activity is hidden.
         createHistoryReader()
-        SessionScheduler.scheduleAll(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -127,6 +127,43 @@ class BackgroundMonitorService : Service() {
             main.removeCallbacks(readerPoll)
             main.post(readerPoll)
             if (readerPageUrl.isNotBlank()) readerWebView?.loadUrl(readerPageUrl)
+        }
+    }
+
+    /**
+     * Sends the four session reminders from the already-running foreground monitor.
+     * No AlarmManager, PendingIntent, phone alarm, or local reminder notification is used.
+     * The monitor polls every 3 seconds and persists each date/session key to avoid duplicates.
+     */
+    private fun checkReadyTelegramReminder() {
+        val now = Calendar.getInstance()
+        if (now.get(Calendar.MINUTE) != 55) return
+        val sessionHour = when (now.get(Calendar.HOUR_OF_DAY)) {
+            9 -> 10
+            14 -> 15
+            17 -> 18
+            20 -> 21
+            else -> return
+        }
+        val dateKey = SimpleDateFormat("yyyyMMdd", Locale.US).format(now.time)
+        val sentKey = "ready_telegram_sent_${dateKey}_${sessionHour}"
+        if (prefs.getBoolean(sentKey, false)) return
+
+        // Save before sending so repeated 3-second polls cannot post duplicate messages.
+        if (!prefs.edit().putBoolean(sentKey, true).commit()) {
+            updateMonitorDiagnostic("ARE YOU READY reminder save failed • Telegram नहीं भेजा गया")
+            return
+        }
+        val sessionTime = String.format(Locale.US, "%02d:00", sessionHour)
+        val message = "🔥 ARE YOU READY? आज का सेशन ${sessionTime} बजे शुरू होगा। सभी तैयार रहें!"
+        updateMonitorDiagnostic("ARE YOU READY • Telegram भेजा जा रहा है • ${sessionTime} session")
+        SessionScheduler.sendTelegram(this, message) { ok, detail ->
+            if (ok) {
+                updateMonitorDiagnostic("ARE YOU READY • Telegram पर भेज दिया गया • ${sessionTime} session")
+            } else {
+                android.util.Log.e("BackgroundMonitor", "ARE YOU READY Telegram failed: " + detail)
+                updateMonitorDiagnostic("ARE YOU READY Telegram failed • " + detail)
+            }
         }
     }
 
