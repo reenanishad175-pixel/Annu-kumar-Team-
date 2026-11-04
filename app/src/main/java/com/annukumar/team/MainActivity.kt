@@ -271,9 +271,9 @@ class MainActivity : Activity() {
         val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(6).map { it.second })
         val pick = preview.signal
         predictionView.text = if (pick != null) {
-            "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}"
+            "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         } else {
-            "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}"
+            "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
