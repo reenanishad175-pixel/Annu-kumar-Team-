@@ -246,8 +246,9 @@ class BackgroundMonitorService : Service() {
             }
             resolved.sortBy { it.first }
             var wins = prefs.getInt("bg_wins",0)
-            var level = prefs.getInt("bg_level",1).coerceIn(1,7)
-            var stopAtLevelSeven = false
+            var level = prefs.getInt("bg_level",1).coerceIn(1,8)
+            var consecutiveLosses = prefs.getInt("bg_consecutive_losses",0).coerceIn(0,8)
+            var stopAtLevelEight = false
             for ((_, index, outcome) in resolved) {
                 val item = predictions.optJSONObject(index) ?: continue
                 val target = item.optString("period")
@@ -259,23 +260,25 @@ class BackgroundMonitorService : Service() {
                 }
                 if (outcome == "WIN") {
                     wins++
+                    consecutiveLosses = 0
                     level = 1
                 } else {
-                    if (assignedLevel == 7) stopAtLevelSeven = true
-                    level = (assignedLevel + 1).coerceAtMost(7)
+                    consecutiveLosses++
+                    if (consecutiveLosses >= 8) stopAtLevelEight = true
+                    level = (assignedLevel + 1).coerceAtMost(8)
                 }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
                 val gameMode = item.optString("mode", mode)
                 send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n⚡ Level: $assignedLevel\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
-                if (stopAtLevelSeven) break
+                if (stopAtLevelEight) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
                 .putInt("bg_wins",wins).putInt("bg_level",level)
-                .putInt("bg_consecutive_losses",if (level == 1) 0 else level - 1)
-                .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelSeven).commit()
-            if (stopAtLevelSeven) {
-                send("सेशन समाप्त","Level 7 पर LOSS आया; सेशन रोक दिया गया।")
-                updateMonitorDiagnostic("सेशन Level 7 LOSS के बाद रोका गया")
+                .putInt("bg_consecutive_losses",consecutiveLosses)
+                .putBoolean("bg_stopped",prefs.getBoolean("bg_stopped",false) || stopAtLevelEight).commit()
+            if (stopAtLevelEight) {
+                send("सेशन समाप्त","लगातार 8 LOSS होने के कारण सेशन रोक दिया गया। हमें खेद है।")
+                updateMonitorDiagnostic("लगातार 8 LOSS के बाद सेशन रोका गया")
                 return
             }
 
@@ -283,7 +286,7 @@ class BackgroundMonitorService : Service() {
                 val promoKey = "bg_promo_sent_" + sessionKey
                 if (!prefs.getBoolean(promoKey, false)) {
                     val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
-                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–7 information\n• Active community updates\n\nJoin the community:\n" + link
+                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link
                     SessionScheduler.sendTelegram(this, "ANNU KUMAR TEAM\n" + promo) { ok, detail ->
                         if (ok) prefs.edit().putBoolean(promoKey, true).commit()
                         else android.util.Log.e("BackgroundMonitor", "Promo Telegram failed: " + detail)
@@ -294,7 +297,7 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("आज के सेशन में 5 WIN पूरे • अगले सेशन का इंतज़ार")
                 return
             }
-            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन Level 7 LOSS के बाद रोका गया"); return }
+            if (prefs.getBoolean("bg_stopped",false)) { updateMonitorDiagnostic("सेशन लगातार 8 LOSS के बाद रोका गया"); return }
             
 
             val targetPeriod = newestPeriod.add(java.math.BigInteger.ONE).toString()
@@ -318,7 +321,7 @@ class BackgroundMonitorService : Service() {
                 sendSkipOnce(targetPeriod, mode, sessionKey, analysis.reason)
                 return
             }
-            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,7)
+            val currentLevel = prefs.getInt("bg_level",1).coerceIn(1,8)
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             val record = JSONObject().put("period",targetPeriod).put("pick",pick)
