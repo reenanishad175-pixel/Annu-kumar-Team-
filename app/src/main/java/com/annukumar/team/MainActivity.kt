@@ -268,7 +268,7 @@ class MainActivity : Activity() {
         val trend = "BIG: $big / SMALL: $small"
         // Dashboard preview uses the same four approved rules as the background sender.
         // No last-10 frequency/majority fallback is permitted.
-        val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
+        val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(6).map { it.second })
         val pick = preview.signal
         predictionView.text = if (pick != null) {
             "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
