@@ -272,10 +272,11 @@ class MainActivity : Activity() {
         val big = orderedRows.count { it.second == "BIG" }
         val small = orderedRows.size - big
         val trend = "BIG: $big / SMALL: $small"
-        // Dashboard preview uses the same four approved rules as the background sender.
-        // No last-10 frequency/majority fallback is permitted.
+        // Dashboard preview mirrors the eight active patterns and the service's
+        // three-SKIP cooldown after a missed Three Trend prediction.
         val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
-        val pick = preview.signal
+        val trendSkipRemaining = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
+        val pick = if (trendSkipRemaining > 0) null else preview.signal
         if (pick != null) {
             val predictionLine = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
             val styledLine = SpannableStringBuilder(predictionLine)
@@ -292,7 +293,10 @@ class MainActivity : Activity() {
             }
             predictionView.text = styledLine
         } else {
-            predictionView.text = "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
+            val skipReason = if (trendSkipRemaining > 0)
+                "Three Trend LOSS cooldown • $trendSkipRemaining SKIP बाकी"
+            else preview.reason
+            predictionView.text = "अगला Period: $targetPeriod  •  SKIP: $skipReason  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
