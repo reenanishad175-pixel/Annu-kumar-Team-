@@ -23,10 +23,10 @@ object PatternAnalyzer {
 
     // All four strategies use exactly the same three-period lookback.
     private val strategies = listOf(
-        Strategy("STRATEGY_1", listOf("SMALL", "BIG", "BIG"), "SMALL"),
-        Strategy("STRATEGY_2", listOf("SMALL", "SMALL", "BIG"), "BIG"),
-        Strategy("STRATEGY_3", listOf("BIG", "SMALL", "SMALL"), "BIG"),
-        Strategy("STRATEGY_4", listOf("BIG", "BIG", "SMALL"), "SMALL")
+        Strategy("ONE_BY_ONE_BIG_SMALL_BIG", listOf("BIG", "SMALL", "BIG"), "SMALL"),
+        Strategy("ONE_BY_ONE_SMALL_BIG_SMALL", listOf("SMALL", "BIG", "SMALL"), "BIG"),
+        Strategy("TREND_BASE_BIG", listOf("BIG", "BIG", "BIG"), "BIG"),
+        Strategy("TREND_BASE_SMALL", listOf("SMALL", "SMALL", "SMALL"), "SMALL")
     )
 
     fun analyzeNewestFirst(rawValues: List<String>): Summary {
