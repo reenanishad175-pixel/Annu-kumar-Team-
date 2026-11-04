@@ -228,7 +228,7 @@ class BackgroundMonitorService : Service() {
                     level = (assignedLevel + 1).coerceAtMost(8)
                 }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
-                send("RESULT", "🎯 $target\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
+                val gameMode = item.optString("mode", mode)\n                send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
                 if (stopAtLevelEight) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
@@ -286,7 +286,7 @@ class BackgroundMonitorService : Service() {
             if (predictionSendInFlight) { updateMonitorDiagnostic("Telegram भेजने की प्रक्रिया चल रही है…"); return }
             predictionSendInFlight = true
             val record = JSONObject().put("period",targetPeriod).put("pick",pick)
-                .put("level",currentLevel).put("sessionKey",sessionKey).put("status","SENDING").put("createdAt",System.currentTimeMillis())
+                .put("level",currentLevel).put("mode",mode).put("sessionKey",sessionKey).put("status","SENDING").put("createdAt",System.currentTimeMillis())
             predictions.put(record)
             // Commit the target reservation before the network call: duplicate snapshots cannot send it twice.
             if (!prefs.edit().putString("bg_predictions_json",predictions.toString()).commit()) {
@@ -295,7 +295,7 @@ class BackgroundMonitorService : Service() {
                 return
             }
             val sessionLabel = when (activeHour) { 10 -> "10:00 AM"; 15 -> "3:00 PM"; 18 -> "6:00 PM"; else -> "9:00 PM" }
-            val message = "🔥 ANNU KUMAR TEAM – LIVE SIGNAL 🔥\n\n🎯 NEW PREDICTION\n\n📅 Period: $targetPeriod\n📊 Prediction: $pick\n\n⚡ Level: $currentLevel\n🎮 Session: $sessionLabel\n\n━━━━━━━━━━━━━━\n💎 Stay Connected | Stay Updated\n━━━━━━━━━━━━━━"
+            val message = "🔥 ANNU KUMAR TEAM – LIVE SIGNAL 🔥\n\n🎯 NEW PREDICTION\n\n📅 Period: $targetPeriod\n📊 Prediction: $pick\n\n⚡ Level: $currentLevel\n🎮 Game: $mode\n🕒 Session: $sessionLabel\n\n━━━━━━━━━━━━━━\n💎 Stay Connected | Stay Updated\n━━━━━━━━━━━━━━"
             updateMonitorDiagnostic("Prediction ready: $targetPeriod • Telegram sending…")
             SessionScheduler.sendTelegram(this, message) { ok, detail ->
                 predictionSendInFlight = false
