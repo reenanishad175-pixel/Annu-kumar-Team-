@@ -1,8 +1,7 @@
 package com.annukumar.team
 
 /**
- * History is newest-first. Strategies 1–6 remain active exactly as before.
- * Strategies 7 and 8 are deliberately disabled; unmatched history returns SKIP.
+ * History is newest-first. All eight user-defined strategies are active; unmatched history returns SKIP.
  */
 object PatternAnalyzer {
     data class Summary(
@@ -21,7 +20,7 @@ object PatternAnalyzer {
         val signal: String
     )
 
-    // Keep strategies 1–6 unchanged. Strategies 7 and 8 are intentionally omitted.
+    // All eight user-defined strategies are active.
     private val strategies = listOf(
         // 1. One by One
         Strategy("ONE_BY_ONE_BIG_SMALL_BIG", listOf("BIG", "SMALL", "BIG"), "SMALL"),
@@ -34,6 +33,10 @@ object PatternAnalyzer {
         // 3. Third strategy
         Strategy("STRATEGY_THREE_SMALL_BIG_BIG", listOf("SMALL", "BIG", "BIG"), "SMALL"),
         Strategy("STRATEGY_THREE_BIG_SMALL_SMALL", listOf("BIG", "SMALL", "SMALL"), "BIG"),
+
+        // 4. Mixed patterns 7 and 8
+        Strategy("STRATEGY_FOUR_SMALL_SMALL_BIG", listOf("SMALL", "SMALL", "BIG"), "BIG"),
+        Strategy("STRATEGY_FOUR_BIG_BIG_SMALL", listOf("BIG", "BIG", "SMALL"), "SMALL"),
 
     )
 
@@ -64,7 +67,7 @@ object PatternAnalyzer {
 
         return Summary(
             null,
-            "तीन पीरियड में किसी भी सक्रिय पैटर्न (1–6) का मैच नहीं हुआ • SKIP",
+            "तीन पीरियड में किसी भी सक्रिय पैटर्न (1–8) का मैच नहीं हुआ • SKIP",
             big, small, values.size, "SKIP", latestThree
         )
     }
