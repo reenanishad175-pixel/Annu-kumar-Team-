@@ -311,7 +311,7 @@ class BackgroundMonitorService : Service() {
                 updateMonitorDiagnostic("Period $targetPeriod की prediction पहले से सेव है • अगली history का इंतज़ार")
                 return
             }
-            val history = orderedRows.take(3).map { it.second.optString("size").uppercase(Locale.ROOT) }
+            val history = orderedRows.take(6).map { it.second.optString("size").uppercase(Locale.ROOT) }
             if (history.size < 3) {
                 val reason = "केवल ${history.size} सत्यापित परिणाम मिले"
                 sendSkipOnce(targetPeriod, mode, sessionKey, reason)
