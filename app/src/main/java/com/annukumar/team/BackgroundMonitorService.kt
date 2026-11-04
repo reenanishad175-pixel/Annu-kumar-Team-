@@ -229,7 +229,7 @@ class BackgroundMonitorService : Service() {
                 }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
                 val gameMode = item.optString("mode", mode)
-                send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
+                send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n⚡ Level: $assignedLevel\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
                 if (stopAtLevelEight) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
