@@ -228,7 +228,8 @@ class BackgroundMonitorService : Service() {
                     level = (assignedLevel + 1).coerceAtMost(8)
                 }
                 prefs.edit().putString("bg_last_result_period",target).putString("bg_last_outcome",outcome).commit()
-                val gameMode = item.optString("mode", mode)\n                send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
+                val gameMode = item.optString("mode", mode)
+                send("RESULT", "🎯 Period: $target\n🎮 Game: $gameMode\n\n$pick — $outcome " + if (outcome == "WIN") "✅" else "❌")
                 if (stopAtLevelEight) break
             }
             prefs.edit().putString("bg_predictions_json",predictions.toString())
@@ -245,7 +246,7 @@ class BackgroundMonitorService : Service() {
                 val promoKey = "bg_promo_sent_" + sessionKey
                 if (!prefs.getBoolean(promoKey, false)) {
                     val link = "https://bdgwin98.com/#/register?invitationCode=5152785394"
-                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link + "\n" + link + "\n" + link
+                    val promo = "🎉 5 WINS COMPLETED! 🎉\n\nANNU KUMAR TEAM\n\n• Regular session updates\n• BIG / SMALL prediction updates\n• WIN / LOSS status updates\n• Structured Level 1–8 information\n• Active community updates\n\nJoin the community:\n" + link
                     SessionScheduler.sendTelegram(this, "ANNU KUMAR TEAM\n" + promo) { ok, detail ->
                         if (ok) prefs.edit().putBoolean(promoKey, true).commit()
                         else android.util.Log.e("BackgroundMonitor", "Promo Telegram failed: " + detail)
