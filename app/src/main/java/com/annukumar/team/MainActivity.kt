@@ -276,7 +276,14 @@ class MainActivity : Activity() {
         // three-SKIP cooldown after a missed Three Trend prediction.
         val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
         val trendSkipRemaining = prefs.getInt("bg_trend_skip_remaining",0).coerceIn(0,3)
-        val pick = if (trendSkipRemaining > 0) null else preview.signal
+        val now = Calendar.getInstance()
+        val activeHour = intArrayOf(10,15,18,21).lastOrNull { it <= now.get(Calendar.HOUR_OF_DAY) } ?: 10
+        val dateKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(now.time)
+        val sessionKey = "$dateKey-$activeHour"
+        val currentPeriodWasSkipped = prefs.getBoolean("bg_trend_skip_done_${sessionKey}_${targetPeriod}", false)
+        // The third skipped period has remaining=0 but must still display SKIP.
+        val isTrendCooldownActive = trendSkipRemaining > 0 || currentPeriodWasSkipped
+        val pick = if (isTrendCooldownActive) null else preview.signal
         if (pick != null) {
             val predictionLine = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
             val styledLine = SpannableStringBuilder(predictionLine)
@@ -293,8 +300,8 @@ class MainActivity : Activity() {
             }
             predictionView.text = styledLine
         } else {
-            val skipReason = if (trendSkipRemaining > 0)
-                "Three Trend LOSS cooldown • $trendSkipRemaining SKIP बाकी"
+            val skipReason = if (isTrendCooldownActive)
+                "Three Trend LOSS cooldown • ${if (trendSkipRemaining > 0) "$trendSkipRemaining SKIP बाकी" else "इस Period पर तीसरा SKIP"}"
             else preview.reason
             predictionView.text = "अगला Period: $targetPeriod  •  SKIP: $skipReason  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }
