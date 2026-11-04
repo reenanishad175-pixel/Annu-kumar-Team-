@@ -339,7 +339,7 @@ class MainActivity : Activity() {
                 if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 901)
                 } else {
-                    // Do not clear a completed six-level session stop; the next scheduled session resets it.
+                    // Do not clear a completed seven-level session stop; the next scheduled session resets it.
                     BackgroundMonitorService.start(this@MainActivity)
                     Toast.makeText(this@MainActivity, "Background monitoring started", Toast.LENGTH_LONG).show()
                 }
