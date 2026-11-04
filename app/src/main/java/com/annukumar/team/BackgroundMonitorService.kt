@@ -269,7 +269,12 @@ class BackgroundMonitorService : Service() {
                     level = 1
                 } else {
                     consecutiveLosses++
-                    if (strategyName.startsWith("TREND_BASE_")) trendSkipRemaining = 3
+                    if (strategyName == "TREND_BASE_BIG" || strategyName == "TREND_BASE_SMALL") {
+                        // Start cooldown only after the matching Three Trend prediction is confirmed LOSS.
+                        // BBB -> BIG miss (actual SMALL); SSS -> SMALL miss (actual BIG).
+                        // Both reserve exactly the next three target periods as SKIP.
+                        trendSkipRemaining = 3
+                    }
                     if (consecutiveLosses >= 8) stopAtLevelEight = true
                     level = (assignedLevel + 1).coerceAtMost(8)
                 }
