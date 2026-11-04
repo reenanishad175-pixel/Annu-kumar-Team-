@@ -147,10 +147,11 @@ class BackgroundMonitorService : Service() {
         }
         val dateKey = SimpleDateFormat("yyyyMMdd", Locale.US).format(now.time)
         val sentKey = "ready_telegram_sent_${dateKey}_${sessionHour}"
+        val attemptKey = "ready_telegram_attempt_${dateKey}_${sessionHour}"
         if (prefs.getBoolean(sentKey, false)) return
-
-        // Save before sending so repeated 3-second polls cannot post duplicate messages.
-        if (!prefs.edit().putBoolean(sentKey, true).commit()) {
+        // Retry after transient Telegram/network failures without duplicate 3-second polling sends.
+        if (now.timeInMillis - prefs.getLong(attemptKey, 0L) < 60_000L) return
+        if (!prefs.edit().putLong(attemptKey, now.timeInMillis).commit()) {
             updateMonitorDiagnostic("ARE YOU READY reminder save failed • Telegram नहीं भेजा गया")
             return
         }
@@ -159,10 +160,11 @@ class BackgroundMonitorService : Service() {
         updateMonitorDiagnostic("ARE YOU READY • Telegram भेजा जा रहा है • ${sessionTime} session")
         SessionScheduler.sendTelegram(this, message) { ok, detail ->
             if (ok) {
+                prefs.edit().putBoolean(sentKey, true).commit()
                 updateMonitorDiagnostic("ARE YOU READY • Telegram पर भेज दिया गया • ${sessionTime} session")
             } else {
                 android.util.Log.e("BackgroundMonitor", "ARE YOU READY Telegram failed: " + detail)
-                updateMonitorDiagnostic("ARE YOU READY Telegram failed • " + detail)
+                updateMonitorDiagnostic("ARE YOU READY Telegram failed • " + detail + " • 60 सेकंड में दोबारा प्रयास होगा")
             }
         }
     }
@@ -365,17 +367,28 @@ class BackgroundMonitorService : Service() {
      */
     private fun sendSkipOnce(targetPeriod: String, mode: String, sessionKey: String, reason: String) {
         val skipKey = "bg_skip_sent_" + sessionKey + "_" + mode + "_" + targetPeriod
+        val attemptKey = skipKey + "_attempt"
         if (prefs.getBoolean(skipKey, false)) {
             updateMonitorDiagnostic("SKIP • Period $targetPeriod पहले ही Telegram पर भेजा जा चुका है")
             return
         }
-        // Commit before network call so duplicate snapshots cannot send twice.
-        if (!prefs.edit().putBoolean(skipKey, true).commit()) {
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong(attemptKey, 0L) < 60_000L) return
+        // Persist the attempt time before sending to suppress duplicate history-poll sends.
+        if (!prefs.edit().putLong(attemptKey, now).commit()) {
             updateMonitorDiagnostic("SKIP रिकॉर्ड सेव नहीं हुआ • Telegram संदेश नहीं भेजा")
             return
         }
-        updateMonitorDiagnostic("SKIP • Period $targetPeriod • $reason")
-        send("SKIP", "⏭️ SKIP\nPeriod: $targetPeriod\nGame: $mode\nकारण: $reason")
+        updateMonitorDiagnostic("SKIP • Period $targetPeriod • $reason • Telegram भेजा जा रहा है")
+        SessionScheduler.sendTelegram(this, "SKIP\n⏭️ Period: $targetPeriod\nGame: $mode\nकारण: $reason") { ok, detail ->
+            if (ok) {
+                prefs.edit().putBoolean(skipKey, true).commit()
+                updateMonitorDiagnostic("SKIP • Period $targetPeriod • Telegram पर भेज दिया गया")
+            } else {
+                android.util.Log.e("BackgroundMonitor", "SKIP Telegram failed: " + detail)
+                updateMonitorDiagnostic("SKIP Telegram failed • " + detail + " • 60 सेकंड में दोबारा प्रयास होगा")
+            }
+        }
     }
 
     private fun updateMonitorDiagnostic(message: String) {
