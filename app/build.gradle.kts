@@ -13,8 +13,8 @@ android {
         applicationId = "com.annukumar.team"
         minSdk = 23
         targetSdk = 35
-        versionCode = 189
-        versionName = "1.89"
+        versionCode = 190
+        versionName = "1.90"
     }
 
     compileOptions {
