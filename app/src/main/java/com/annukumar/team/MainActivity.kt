@@ -11,6 +11,11 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.graphics.Color
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
@@ -50,6 +55,7 @@ class MainActivity : Activity() {
     private lateinit var loginTab: Button
     private lateinit var settingsTab: Button
     private var pageReady = false
+    private var historyReadInFlight = false
     private val seenPeriods = LinkedHashSet<String>()
     private val observedRows = mutableListOf<Pair<String, String>>()
 
@@ -62,8 +68,10 @@ class MainActivity : Activity() {
 
     private val pageMonitor = object : Runnable {
         override fun run() {
-            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE) {
-                web.evaluateJavascript(HISTORY_READER_JS) { raw ->
+            if (::web.isInitialized && pageReady && web.visibility == View.VISIBLE && !isFinishing && !historyReadInFlight) {
+                historyReadInFlight = true
+                web.evaluateJavascript(BdgHistoryReader.HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
                     if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
                 }
             }
@@ -78,7 +86,6 @@ class MainActivity : Activity() {
         window.navigationBarColor = navy
         window.decorView.systemUiVisibility = 0
         setContentView(buildScreen())
-        SessionScheduler.scheduleAll(this)
         showLogin()
         if (savedInstanceState == null) web.loadUrl(bdgUrl)
         handler.postDelayed(pageMonitor, 2500)
@@ -142,6 +149,10 @@ class MainActivity : Activity() {
             isNestedScrollingEnabled = true
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // Advisory renderer priority while user-enabled monitoring is active.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+            }
             settings.loadsImagesAutomatically = true
             settings.javaScriptCanOpenWindowsAutomatically = true
             settings.setSupportMultipleWindows(false)
@@ -165,7 +176,7 @@ class MainActivity : Activity() {
                         "(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';})()",
                         null
                     )
-                    view?.evaluateJavascript(NETWORK_HISTORY_HOOK_JS, null)
+                    view?.evaluateJavascript(BdgHistoryReader.NETWORK_HISTORY_HOOK_JS, null)
                 }
 
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -205,7 +216,11 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(2))
         }
         selectedModeView = label("चयन: अभी कोई गेम चयनित नहीं", 13f)
-        predictionView = label("अनुमान: डेटा का इंतज़ार", 17f).apply { setTextColor(accent) }
+        predictionView = label("अनुमान: डेटा का इंतज़ार", 12f).apply {
+            // Supporting details are compact green; only BIG/SMALL is emphasized red.
+            setTextColor(Color.rgb(39, 211, 175))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
         trendView = label("ट्रेंड: —", 12f).apply { setTextColor(muted) }
         historyView = label("हाल के नतीजे: —", 12f).apply { setTextColor(muted) }
         telegramDiagnosticView = label("Telegram: मॉनिटर स्थिति जाँची जा रही है…", 12f).apply { setTextColor(Color.rgb(255, 193, 7)) }
@@ -215,8 +230,9 @@ class MainActivity : Activity() {
         panelBody.addView(historyView)
         panelBody.addView(telegramDiagnosticView)
         floatingPanel.addView(panelBody)
-        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
-        lp.setMargins(dp(8), 0, dp(8), dp(8))
+        val lp = FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP)
+        // Keep the live dashboard at the top so BDG betting controls near the bottom stay visible.
+        lp.setMargins(dp(8), dp(6), dp(8), 0)
         dashboard.addView(floatingPanel, lp)
         floatingPanel.bringToFront()
     }
@@ -249,32 +265,35 @@ class MainActivity : Activity() {
             historyView.text = "हाल के नतीजे: —"
             return
         }
-        val big = orderedRows.count { it.second == "BIG" }
-        val small = orderedRows.size - big
         val latestPeriod = orderedRows.first().first
         val targetPeriod = try { java.math.BigInteger(latestPeriod).add(java.math.BigInteger.ONE).toString() } catch (_: Exception) { latestPeriod }
         val latest = orderedRows.first().second
         val streak = orderedRows.takeWhile { it.second == latest }.size
-        val trend = when {
-            big > small -> "BIG अधिक: $big बनाम SMALL $small"
-            small > big -> "SMALL अधिक: $small बनाम BIG $big"
-            else -> "दोनों बराबर: BIG $big / SMALL $small"
+        val big = orderedRows.count { it.second == "BIG" }
+        val small = orderedRows.size - big
+        val trend = "BIG: $big / SMALL: $small"
+        // Dashboard preview uses the same four approved rules as the background sender.
+        // No last-10 frequency/majority fallback is permitted.
+        val preview = PatternAnalyzer.analyzeNewestFirst(orderedRows.take(3).map { it.second })
+        val pick = preview.signal
+        if (pick != null) {
+            val predictionLine = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  ${preview.strategy}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
+            val styledLine = SpannableStringBuilder(predictionLine)
+            val pickStart = predictionLine.indexOf(pick, predictionLine.indexOf("अनुमान:"))
+            if (pickStart >= 0) {
+                styledLine.setSpan(
+                    ForegroundColorSpan(Color.rgb(255, 82, 82)),
+                    pickStart,
+                    pickStart + pick.length,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                styledLine.setSpan(RelativeSizeSpan(2.0f), pickStart, pickStart + pick.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                styledLine.setSpan(StyleSpan(android.graphics.Typeface.BOLD), pickStart, pickStart + pick.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            predictionView.text = styledLine
+        } else {
+            predictionView.text = "अगला Period: $targetPeriod  •  SKIP: ${preview.reason}  •  Latest 3: ${preview.latestThree.joinToString(" / ")}"
         }
-        val latestThree = orderedRows.take(3).map { it.second }
-        val pick = when {
-            latestThree.size == 3 && latestThree.all { it == "BIG" } -> "BIG"
-            latestThree.size == 3 && latestThree.all { it == "SMALL" } -> "SMALL"
-            latestThree.size == 3 && latestThree[0] != latestThree[1] && latestThree[1] != latestThree[2] -> if (latestThree[2] == "BIG") "SMALL" else "BIG"
-            big > small -> "BIG"
-            small > big -> "SMALL"
-            else -> latest
-        }
-        val confidence = when {
-            orderedRows.size < 5 -> "कम"
-            kotlin.math.abs(big - small) >= 4 -> "मध्यम (सिर्फ पैटर्न-आधारित)"
-            else -> "कम (पैटर्न कमजोर)"
-        }
-        predictionView.text = "अगला Period: $targetPeriod  •  अनुमान: $pick  •  भरोसा: $confidence"
         trendView.text = "ट्रेंड: $trend  •  आखिरी $latest की लगातार लड़ी: $streak"
         historyView.text = "हाल के ${orderedRows.size}: " + orderedRows.joinToString("  ›  ") { it.second }
 
@@ -339,7 +358,7 @@ class MainActivity : Activity() {
                 if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 901)
                 } else {
-                    prefs.edit().putBoolean("bg_stopped", false).apply()
+                    // Do not clear a completed eight-level session stop; the next scheduled session resets it.
                     BackgroundMonitorService.start(this@MainActivity)
                     Toast.makeText(this@MainActivity, "Background monitoring started", Toast.LENGTH_LONG).show()
                 }
@@ -436,6 +455,8 @@ class MainActivity : Activity() {
             val monitorIntent = Intent(this, BackgroundMonitorService::class.java).apply {
                 action = BackgroundMonitorService.ACTION_HISTORY_UPDATE
                 putExtra(BackgroundMonitorService.EXTRA_HISTORY_JSON, raw)
+                putExtra(BackgroundMonitorService.EXTRA_PAGE_URL, web.url)
+                putExtra(BackgroundMonitorService.EXTRA_SELECTED_MODE, mode)
             }
             try {
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(monitorIntent) else startService(monitorIntent)
@@ -484,7 +505,18 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::web.isInitialized) web.onResume()
+        if (::web.isInitialized) {
+            web.onResume()
+            if (pageReady && web.visibility == View.VISIBLE && !historyReadInFlight) {
+                // Use the same in-flight guard as the regular poll so resume cannot
+                // overlap a history read already started by the polling Runnable.
+                historyReadInFlight = true
+                web.evaluateJavascript(BdgHistoryReader.HISTORY_READER_JS) { raw ->
+                    historyReadInFlight = false
+                    if (!isFinishing && raw != null && raw != "null") consumeHistory(raw)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -499,160 +531,6 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val NETWORK_HISTORY_HOOK_JS = """(function(){
-          if (window.__annuNetworkHookInstalled) return;
-          window.__annuNetworkHookInstalled = true;
-          window.__annuNetworkRows = window.__annuNetworkRows || [];
-          function collect(value) {
-            function walk(v, depth) {
-              if (!v || typeof v !== "object" || depth > 8) return;
-              if (Array.isArray(v)) { v.forEach(function(x){ walk(x, depth + 1); }); return; }
-              var period = v.period || v.issueNumber || v.issue || v.expect || v.drawNumber || v.round;
-              var result = v.size || v.bigSmall || v.resultSize || v.openResult || v.result;
-              if (period != null && result != null) {
-                var p = String(period), z = String(result).toUpperCase();
-                if (/^[0-9]{8,24}$/.test(p) && (z === "BIG" || z === "SMALL")) {
-                  if (!window.__annuNetworkRows.some(function(x){ return x.period === p; })) window.__annuNetworkRows.push({period:p,size:z});
-                }
-              }
-              Object.keys(v).forEach(function(k){ walk(v[k], depth + 1); });
-            }
-            walk(value, 0);
-            if (window.__annuNetworkRows.length > 100) window.__annuNetworkRows = window.__annuNetworkRows.slice(-100);
-          }
-          var fetch0 = window.fetch;
-          if (fetch0) window.fetch = function(){
-            return fetch0.apply(this, arguments).then(function(response){
-              try { response.clone().json().then(collect).catch(function(){}); } catch(e) {}
-              return response;
-            });
-          };
-          var open0 = XMLHttpRequest.prototype.open;
-          var send0 = XMLHttpRequest.prototype.send;
-          XMLHttpRequest.prototype.open = function(method, url){ this.__annuUrl = String(url || ""); return open0.apply(this, arguments); };
-          XMLHttpRequest.prototype.send = function(){
-            this.addEventListener("load", function(){
-              try { if (this.responseType === "" || this.responseType === "text") collect(JSON.parse(this.responseText)); } catch(e) {}
-            });
-            return send0.apply(this, arguments);
-          };
-        })()""";
 
-        private const val HISTORY_READER_JS = """(function () {
-          var found = [], seen = Object.create(null), roots = [];
-          function visible(el) {
-            if (!el || !el.getClientRects || !el.getClientRects().length) return false;
-            var s = window.getComputedStyle(el);
-            return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
-          }
-          function textOf(el) {
-            return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          }
-          var bodyText = (document.body && (document.body.innerText || document.body.textContent) || '').toLowerCase();
-          var route = (location.href || '').toLowerCase();
-          if (!/bingo|win[\s_-]*go/.test(route) && !/\bbingo\b|\bwin\s*go\b/.test(bodyText)) return JSON.stringify('WAIT_BINGO');
-
-          var modes = [
-            {name:'Win Go / Bingo 30 Seconds', re:/^(?:(?:win\s*go|bingo)\s*)?30\s*(?:seconds?|secs?|sec|s)$/i},
-            {name:'Win Go / Bingo 1 Minute', re:/^(?:(?:win\s*go|bingo)\s*)?1\s*(?:minutes?|mins?|min|m)$/i},
-            {name:'Win Go / Bingo 3 Minutes', re:/^(?:(?:win\s*go|bingo)\s*)?3\s*(?:minutes?|mins?|min|m)$/i},
-            {name:'Win Go / Bingo 5 Minutes', re:/^(?:(?:win\s*go|bingo)\s*)?5\s*(?:minutes?|mins?|min|m)$/i}
-          ];
-          function modeFor(el) {
-            var t = textOf(el).replace(/\s+/g, ' ').trim();
-            if (t.length > 40) return null;
-            return modes.find(function(m){ return m.re.test(t); }) || null;
-          }
-          function activeElement(el) {
-            var cls = String(el.className && el.className.baseVal || el.className || '').toLowerCase();
-            var parent = el.parentElement;
-            var pcls = parent ? String(parent.className && parent.className.baseVal || parent.className || '').toLowerCase() : '';
-            return el.getAttribute('aria-selected') === 'true' ||
-              el.getAttribute('aria-pressed') === 'true' ||
-              el.getAttribute('data-state') === 'active' ||
-              /(^|[\s_-])(active|selected|current|is-active|tab-active)([\s_-]|$)/.test(cls) ||
-              /(^|[\s_-])(active|selected|current|is-active|tab-active)([\s_-]|$)/.test(pcls);
-          }
-          var candidates = Array.from(document.querySelectorAll('[role="tab"],button,[aria-selected],[aria-pressed],a,div,span'));
-          var selected = null, selectedEl = null;
-          for (var i=0; i<candidates.length; i++) {
-            var el = candidates[i];
-            if (!visible(el)) continue;
-            var mode = modeFor(el);
-            if (mode && activeElement(el)) {
-              selected = mode.name; selectedEl = el; break;
-            }
-          }
-          if (!selected) return JSON.stringify('WAIT_MODE');
-
-          function hasHistoryRows(root) {
-            if (!root || !root.querySelectorAll) return false;
-            var nodes = root.querySelectorAll('tr,[role="row"],article,li,[class*="record"],[class*="item"],[class*="row"]');
-            for (var i=0; i<nodes.length; i++) {
-              var el = nodes[i];
-              if (!visible(el)) continue;
-              var t = textOf(el);
-              if (t.length <= 420 && /\b[0-9]{8,24}\b/.test(t) && /\b(BIG|SMALL)\b/i.test(t)) return true;
-            }
-            return false;
-          }
-          function findPanel(tab) {
-            var controls = tab.getAttribute('aria-controls');
-            if (controls) {
-              var byId = document.getElementById(controls);
-              if (byId && visible(byId)) return byId;
-            }
-            var rolePanel = tab.closest && tab.closest('[role="tabpanel"]');
-            if (rolePanel && visible(rolePanel)) return rolePanel;
-
-            var tabGroup = tab.closest && (tab.closest('[role="tablist"]') || tab.parentElement);
-            for (var ancestor = tabGroup, depth = 0; ancestor && depth < 5; depth++, ancestor = ancestor.parentElement) {
-              var children = Array.from(ancestor.children || []);
-              for (var j=0; j<children.length; j++) {
-                var child = children[j];
-                if (child === tabGroup || child.contains(tabGroup) || !visible(child)) continue;
-                if (hasHistoryRows(child)) return child;
-              }
-            }
-            return null;
-          }
-          var scope = findPanel(selectedEl);
-          if (!scope) return JSON.stringify('WAIT_PANEL');
-
-          function addRow(el) {
-            if (!visible(el)) return;
-            var txt = textOf(el);
-            if (!txt || txt.length > 420) return;
-            var periods = txt.match(/\b[0-9]{8,24}\b/g) || [];
-            var sizes = txt.match(/\b(BIG|SMALL)\b/ig) || [];
-            if (periods.length !== 1 || sizes.length !== 1) return;
-            var period = periods[0], size = sizes[0].toUpperCase();
-            if (!seen[period]) {
-              seen[period] = true;
-              found.push({period:period, size:size});
-            }
-          }
-          function scanRoot(root) {
-            if (!root || roots.indexOf(root) >= 0 || !root.querySelectorAll) return;
-            roots.push(root);
-            root.querySelectorAll('tr,[role="row"],article,li,[class*="record"],[class*="item"],[class*="row"]').forEach(addRow);
-            root.querySelectorAll('*').forEach(function(el) {
-              if (el.shadowRoot) scanRoot(el.shadowRoot);
-            });
-            root.querySelectorAll('iframe').forEach(function(frame) {
-              try { if (frame.contentDocument) scanRoot(frame.contentDocument); } catch (_) {}
-            });
-          }
-          try { scanRoot(scope); } catch (_) {}
-          if (found.length === 0 && Array.isArray(window.__annuNetworkRows)) {
-            window.__annuNetworkRows.forEach(function(row) {
-              if (row && row.period && (row.size === "BIG" || row.size === "SMALL") && !seen[row.period]) {
-                seen[row.period] = true;
-                found.push({period:String(row.period), size:row.size});
-              }
-            });
-          }
-          return JSON.stringify({mode:selected, rows:found.slice(0,10)});
-        })()"""
-    }
+}
 }

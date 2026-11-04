@@ -1,21 +1,84 @@
 package com.annukumar.team
 
+/**
+ * History is newest-first. Every strategy checks exactly the latest THREE
+ * verified periods. All four strategies (eight signatures including opposites)
+ * are evaluated; if none matches, return SKIP.
+ */
 object PatternAnalyzer {
-    data class Summary(val signal: String?, val reason: String, val big: Int, val small: Int, val count: Int)
-    // Educational paper-mode summary; not a reliable prediction. Oldest-to-newest input.
-    fun analyze(raw: String): Summary {
-        val values = raw.split(Regex("[,\\s]+")).map { it.trim().uppercase() }.filter { it == "BIG" || it == "SMALL" }.takeLast(10)
+    data class Summary(
+        val signal: String?,
+        val reason: String,
+        val big: Int,
+        val small: Int,
+        val count: Int,
+        val strategy: String? = null,
+        val latestThree: List<String> = emptyList()
+    )
+
+    private data class Strategy(
+        val name: String,
+        val pattern: List<String>,
+        val signal: String
+    )
+
+    // Four strategies, each with its two explicitly defined opposite signatures.
+    // Keep the list complete: 8 cases total, all evaluated against exactly 3 periods.
+    private val strategies = listOf(
+        // 1. One by One
+        Strategy("ONE_BY_ONE_BIG_SMALL_BIG", listOf("BIG", "SMALL", "BIG"), "SMALL"),
+        Strategy("ONE_BY_ONE_SMALL_BIG_SMALL", listOf("SMALL", "BIG", "SMALL"), "BIG"),
+
+        // 2. Trend Base
+        Strategy("TREND_BASE_BIG", listOf("BIG", "BIG", "BIG"), "BIG"),
+        Strategy("TREND_BASE_SMALL", listOf("SMALL", "SMALL", "SMALL"), "SMALL"),
+
+        // 3. Third strategy
+        Strategy("STRATEGY_THREE_SMALL_BIG_BIG", listOf("SMALL", "BIG", "BIG"), "SMALL"),
+        Strategy("STRATEGY_THREE_BIG_SMALL_SMALL", listOf("BIG", "SMALL", "SMALL"), "BIG"),
+
+        // 4. Fourth strategy
+        Strategy("STRATEGY_FOUR_SMALL_SMALL_BIG", listOf("SMALL", "SMALL", "BIG"), "BIG"),
+        Strategy("STRATEGY_FOUR_BIG_BIG_SMALL", listOf("BIG", "BIG", "SMALL"), "SMALL")
+    )
+
+    fun analyzeNewestFirst(rawValues: List<String>): Summary {
+        val values = rawValues.map { it.trim().uppercase() }
+            .filter { it == "BIG" || it == "SMALL" }
+            .take(3)
         val big = values.count { it == "BIG" }
         val small = values.size - big
-        if (values.size < 3) return Summary(null, "कम-से-कम 3 सत्यापित परिणाम दर्ज करें।", big, small, values.size)
-        val last3 = values.takeLast(3)
-        if (last3[0] != last3[1] && last3[1] != last3[2] && last3[0] == last3[2]) {
-            val next = if (last3.last() == "BIG") "SMALL" else "BIG"
-            return Summary(next, "आखिरी 3 परिणाम alternating pattern दिखाते हैं (demo observation)।", big, small, values.size)
+        val latestThree = values
+
+        if (values.size < 3) {
+            return Summary(
+                null,
+                "सत्यापित परिणाम केवल ${values.size} मिले; 3 चाहिए • SKIP",
+                big, small, values.size, "SKIP", latestThree
+            )
         }
-        if (last3.all { it == last3[0] }) return Summary(last3[0], "आखिरी 3 परिणाम एक ही दिशा में हैं (demo observation)।", big, small, values.size)
-        if (big - small >= 2) return Summary("BIG", "पिछले ${values.size} परिणामों में BIG अधिक है; यह ऐतिहासिक गिनती है।", big, small, values.size)
-        if (small - big >= 2) return Summary("SMALL", "पिछले ${values.size} परिणामों में SMALL अधिक है; यह ऐतिहासिक गिनती है।", big, small, values.size)
-        return Summary(null, "स्पष्ट पैटर्न नहीं मिला — BET SKIP (demo)।", big, small, values.size)
+
+        val matched = strategies.firstOrNull { it.pattern == latestThree }
+        if (matched != null) {
+            return Summary(
+                matched.signal,
+                "${matched.name} मैच हुई • 3 पीरियड",
+                big, small, values.size, matched.name, latestThree
+            )
+        }
+
+        return Summary(
+            null,
+            "तीन पीरियड में किसी भी 8 पैटर्न का मैच नहीं हुआ • SKIP",
+            big, small, values.size, "SKIP", latestThree
+        )
+    }
+
+    /** Backward-compatible parser: raw text is interpreted as newest-first. */
+    fun analyze(raw: String): Summary {
+        val values = raw.split(Regex("[,\\s]+"))
+            .map { it.trim().uppercase() }
+            .filter { it == "BIG" || it == "SMALL" }
+        return analyzeNewestFirst(values)
     }
 }
