@@ -1,8 +1,8 @@
 package com.annukumar.team
 
 /**
- * The BDG history reader supplies outcomes newest-first.
- * Pattern keys below intentionally use that same newest-first order.
+ * History is newest-first. A missing exact three-item key must not automatically
+ * become SKIP: evaluate continuation, alternation, then the recent majority.
  */
 object PatternAnalyzer {
     data class Summary(
@@ -14,10 +14,9 @@ object PatternAnalyzer {
         val strategy: String? = null
     )
 
-    private val predictionsNewestFirst = mapOf(
+    private val exactPatterns = mapOf(
         listOf("SMALL", "BIG", "BIG") to "SMALL",
         listOf("SMALL", "SMALL", "BIG") to "BIG",
-        // Reverse-side versions of the same two rules.
         listOf("BIG", "SMALL", "SMALL") to "BIG",
         listOf("BIG", "BIG", "SMALL") to "SMALL"
     )
@@ -32,40 +31,46 @@ object PatternAnalyzer {
             return Summary(null, "कम-से-कम 3 सत्यापित परिणाम चाहिए।", big, small, values.size)
         }
 
-        // The first three entries are the latest three, already newest-first.
-        val latestPattern = values.take(3)
-        val baseSignal = predictionsNewestFirst[latestPattern]
-            ?: return Summary(
-                null,
-                "नए तीन परिणामों में चारों तय पैटर्न में से कोई स्पष्ट मैच नहीं — SKIP",
-                big,
-                small,
-                values.size
+        val latestThree = values.take(3)
+        val exact = exactPatterns[latestThree]
+        if (exact != null) {
+            val repeated = values.size >= 6 && values.subList(3, 6) == latestThree
+            val signal = if (repeated) opposite(exact) else exact
+            return Summary(
+                signal, 
+                if (repeated) "तीन-तीन परिणामों में वही पैटर्न दोहराया; उल्टा संकेत"
+                else "तय तीन-परिणाम पैटर्न मिला",
+                big, small, values.size,
+                latestThree.joinToString("-") + if (repeated) " (repeated/inverted)" else ""
             )
-
-        // Check the preceding three only after the latest group matches.
-        // If exactly the same three-result pattern repeats in the six-result
-        // window, invert its normal prediction as requested.
-        val repeated = values.size >= 6 &&
-            values.subList(3, 6) == latestPattern
-
-        val signal = if (repeated) opposite(baseSignal) else baseSignal
-        val reason = if (repeated) {
-            "वही पैटर्न लगातार दोनों तीन-रिजल्ट समूहों में दोहराया; संकेत उल्टा"
-        } else if (values.size >= 6) {
-            "नए तीन में पैटर्न मिला; पिछले तीन में वही पैटर्न दोहराया नहीं"
-        } else {
-            "नए तीन में तय पैटर्न मिला; पुराने तीन परिणाम उपलब्ध नहीं"
         }
 
-        return Summary(
-            signal = signal,
-            reason = reason,
-            big = big,
-            small = small,
-            count = values.size,
-            strategy = latestPattern.joinToString("-") + if (repeated) " (repeated/inverted)" else ""
-        )
+        // Clear same-side run: follow it until it breaks.
+        val newest = values.first()
+        val streak = values.takeWhile { it == newest }.size
+        if (streak >= 3) {
+            return Summary(newest, "लगातार $streak $newest परिणाम; जारी ट्रेंड", big, small, values.size, "TREND_CONTINUATION")
+        }
+
+        // Alternating latest three: continue the alternation.
+        if (latestThree[0] != latestThree[1] && latestThree[1] != latestThree[2]) {
+            val signal = opposite(newest)
+            return Summary(signal, "नए तीन परिणाम alternate हैं; alternation जारी", big, small, values.size, "ALTERNATING")
+        }
+
+        // Fallback: use the full available strategy window (3 or 6) majority.
+        // In a tie, follow the newest observed side rather than suppressing every trade.
+        val signal = when {
+            big > small -> "BIG"
+            small > big -> "SMALL"
+            else -> newest
+        }
+        val reason = when {
+            big > small -> "स्पष्ट exact pattern नहीं; उपलब्ध history में BIG अधिक"
+            small > big -> "स्पष्ट exact pattern नहीं; उपलब्ध history में SMALL अधिक"
+            else -> "गिनती बराबर; tie-break में सबसे नया परिणाम follow"
+        }
+        return Summary(signal, reason, big, small, values.size, "RECENT_MAJORITY")
     }
 
     private fun opposite(value: String): String =
