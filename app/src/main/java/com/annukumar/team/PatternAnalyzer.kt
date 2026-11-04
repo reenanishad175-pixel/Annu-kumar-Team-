@@ -2,7 +2,8 @@ package com.annukumar.team
 
 /**
  * History is newest-first. Every strategy checks exactly the latest THREE
- * verified periods. If none of the four exact signatures matches, return SKIP.
+ * verified periods. All four strategies (eight signatures including opposites)
+ * are evaluated; if none matches, return SKIP.
  */
 object PatternAnalyzer {
     data class Summary(
@@ -21,12 +22,24 @@ object PatternAnalyzer {
         val signal: String
     )
 
-    // All four strategies use exactly the same three-period lookback.
+    // Four strategies, each with its two explicitly defined opposite signatures.
+    // Keep the list complete: 8 cases total, all evaluated against exactly 3 periods.
     private val strategies = listOf(
+        // 1. One by One
         Strategy("ONE_BY_ONE_BIG_SMALL_BIG", listOf("BIG", "SMALL", "BIG"), "SMALL"),
         Strategy("ONE_BY_ONE_SMALL_BIG_SMALL", listOf("SMALL", "BIG", "SMALL"), "BIG"),
+
+        // 2. Trend Base
         Strategy("TREND_BASE_BIG", listOf("BIG", "BIG", "BIG"), "BIG"),
-        Strategy("TREND_BASE_SMALL", listOf("SMALL", "SMALL", "SMALL"), "SMALL")
+        Strategy("TREND_BASE_SMALL", listOf("SMALL", "SMALL", "SMALL"), "SMALL"),
+
+        // 3. Third strategy
+        Strategy("STRATEGY_THREE_SMALL_BIG_BIG", listOf("SMALL", "BIG", "BIG"), "SMALL"),
+        Strategy("STRATEGY_THREE_BIG_SMALL_SMALL", listOf("BIG", "SMALL", "SMALL"), "BIG"),
+
+        // 4. Fourth strategy
+        Strategy("STRATEGY_FOUR_SMALL_SMALL_BIG", listOf("SMALL", "SMALL", "BIG"), "BIG"),
+        Strategy("STRATEGY_FOUR_BIG_BIG_SMALL", listOf("BIG", "BIG", "SMALL"), "SMALL")
     )
 
     fun analyzeNewestFirst(rawValues: List<String>): Summary {
@@ -49,14 +62,14 @@ object PatternAnalyzer {
         if (matched != null) {
             return Summary(
                 matched.signal,
-                "${matched.name} मैच हुई • केवल 3 पीरियड",
+                "${matched.name} मैच हुई • 3 पीरियड",
                 big, small, values.size, matched.name, latestThree
             )
         }
 
         return Summary(
             null,
-            "तीन पीरियड में किसी भी रणनीति का पैटर्न मैच नहीं हुआ • SKIP",
+            "तीन पीरियड में किसी भी 8 पैटर्न का मैच नहीं हुआ • SKIP",
             big, small, values.size, "SKIP", latestThree
         )
     }
