@@ -23,9 +23,18 @@ object BdgAutomationController {
         // Never invent WIN/LOSS: discard that stale pending bet and recover
         // the engine at the latest period so it cannot remain stuck forever.
         val oldestVisiblePeriod = outcomes.lastOrNull()?.period
+        // A history gap can also happen while the engine is counting SKIPs:
+        // in that state there is no pending bet, so checking pendingPeriod
+        // alone misses the phone-sleep case. If the last processed period has
+        // fallen behind the oldest visible result, the skipped periods are no
+        // longer reconcilable; reset the stale run instead of retaining Level
+        // and SKIP counters that can never catch up.
         val pendingExpired = pendingPeriod != null && oldestVisiblePeriod != null &&
             comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0
-        if (pendingExpired) {
+        val skipHistoryExpired = state.lastProcessedPeriod != null && oldestVisiblePeriod != null &&
+            comparePeriodIds(state.lastProcessedPeriod, oldestVisiblePeriod) < 0
+        val staleRunExpired = pendingExpired || skipHistoryExpired
+        if (staleRunExpired) {
             state = StrategyEngine.recoverExpiredPending(state, snapshot.currentPeriod)
             saveState(prefs, state)
             prefs.edit()
