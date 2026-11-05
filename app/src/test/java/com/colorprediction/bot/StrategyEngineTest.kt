@@ -17,11 +17,11 @@ class StrategyEngineTest {
         assertEquals(Prediction(Side.BIG, Strategy.LAST_THREE_B), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.BIG)))
     }
 
-    @Test fun latestHistoryResultIsExcludedAndBothOneSkipPatternsMatch() {
-        // BDG history is newest-first. The first item is the settled result
-        // for the previous prediction and must not enter the next pattern.
+    @Test fun topThreeHistoryResultsFormBothOneSkipPatterns() {
+        // The screenshot may be taken after a result arrives; at prediction
+        // time the current pattern is simply the three newest history rows.
         val bigTwoSmall = StrategyEngine.patternFromRecentResults(
-            s(Side.SMALL, Side.BIG, Side.SMALL, Side.SMALL, Side.SMALL)
+            s(Side.SMALL, Side.SMALL, Side.BIG, Side.BIG, Side.SMALL)
         )
         assertEquals(s(Side.BIG, Side.SMALL, Side.SMALL), bigTwoSmall)
         val p1 = StrategyEngine.predict(bigTwoSmall)!!
@@ -29,7 +29,7 @@ class StrategyEngineTest {
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "P1", p1, Side.BIG, 1000L).skipRemaining)
 
         val smallTwoBig = StrategyEngine.patternFromRecentResults(
-            s(Side.BIG, Side.SMALL, Side.BIG, Side.BIG, Side.SMALL)
+            s(Side.BIG, Side.BIG, Side.SMALL, Side.SMALL, Side.BIG)
         )
         assertEquals(s(Side.SMALL, Side.BIG, Side.BIG), smallTwoBig)
         val p2 = StrategyEngine.predict(smallTwoBig)!!
