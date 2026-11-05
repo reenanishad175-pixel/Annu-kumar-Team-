@@ -63,6 +63,14 @@ object StrategyEngine {
     /** Called once for each newly confirmed result period, never for duplicate periods. */
     fun onNewPeriod(state: EngineState, period: String, lastThree: List<Side>): EngineUpdate {
         if (period == state.lastProcessedPeriod) return EngineUpdate(state, status = "Waiting for a new period")
+        // First successful BDG history read is a baseline only. Never place a
+        // prediction on a period that was already open when the app started.
+        if (state.lastProcessedPeriod == null) {
+            return EngineUpdate(
+                state.copy(lastProcessedPeriod = period),
+                status = "SKIP • Initial history loaded; waiting for next period"
+            )
+        }
         if (state.pausedUntilMillis > System.currentTimeMillis()) {
             return EngineUpdate(state.copy(lastProcessedPeriod = period), status = "PAUSED • Level 8 loss cooldown")
         }
