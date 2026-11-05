@@ -27,7 +27,6 @@ class MainActivity : Activity() {
     private lateinit var periodView: TextView
     private lateinit var activityView: TextView
     private lateinit var levelView: TextView
-    private lateinit var strategyView: TextView
     private lateinit var resultFlashView: TextView
     private lateinit var web: WebView
     private val bg = Color.rgb(8, 13, 25)
@@ -128,16 +127,54 @@ class MainActivity : Activity() {
         messageColumn.addView(telegramStatus, LinearLayout.LayoutParams(-1, 0, 1f))
         messageColumn.addView(liveReadMessage, LinearLayout.LayoutParams(-1, 0, 1f))
         telegramBar.addView(messageColumn, LinearLayout.LayoutParams(0, dp(54), 1f))
-        val telegramSettings = TextView(this).apply {
-            text = "⚙ TELEGRAM"
-            textSize = 12f
-            setTextColor(Color.WHITE)
+        val stopButton = TextView(this).apply {
+            text = "■"
+            textSize = 17f
+            setTextColor(Color.rgb(185, 35, 35))
             gravity = Gravity.CENTER
-            setPadding(dp(10), dp(6), dp(10), dp(6))
-            setBackgroundColor(blue)
-            setOnClickListener { showTelegramSettingsDialog() }
+            setBackgroundColor(Color.rgb(255, 230, 230))
+            contentDescription = "Stop predictions after the next WIN"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                if (prefs.getBoolean("predictions_stopped", false)) {
+                    Toast.makeText(this@MainActivity, "Predictions are already stopped after WIN", Toast.LENGTH_SHORT).show()
+                } else {
+                    val requested = prefs.getBoolean("stop_after_win_requested", false)
+                    prefs.edit().putBoolean("stop_after_win_requested", !requested).apply()
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (requested) "STOP request cancelled" else "STOP set • predictions will stop after the next WIN",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         }
-        telegramBar.addView(telegramSettings, LinearLayout.LayoutParams(-2, dp(44)))
+        val stopParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            leftMargin = dp(10)
+            rightMargin = dp(14)
+        }
+        telegramBar.addView(stopButton, stopParams)
+
+        val referButton = TextView(this).apply {
+            text = "↗"
+            textSize = 23f
+            setTextColor(Color.rgb(18, 91, 190))
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.rgb(219, 234, 254))
+            contentDescription = "Send referral promotion to Telegram"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                TelegramReports.referral(this@MainActivity)
+                Toast.makeText(this@MainActivity, "Referral promotion queued for Telegram", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val referParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            leftMargin = dp(14)
+            rightMargin = dp(8)
+        }
+        telegramBar.addView(referButton, referParams)
 
         val header=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
@@ -151,8 +188,17 @@ class MainActivity : Activity() {
         header.addView(logo,LinearLayout.LayoutParams(dp(54),dp(54)))
         val title=text("COLOR PREDICTION BOT",18f,Color.WHITE,true).apply { gravity=Gravity.CENTER_VERTICAL }
         header.addView(title,LinearLayout.LayoutParams(0,-2,1f))
-        val foldButton=button("⌃ MINIMIZE") { }
-        header.addView(foldButton,LinearLayout.LayoutParams(-2,dp(44)))
+        val foldButton = TextView(this).apply {
+            text = "−"
+            textSize = 25f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setBackgroundColor(blue)
+            contentDescription = "Minimize or expand dashboard"
+            isClickable = true
+            isFocusable = true
+        }
+        header.addView(foldButton, LinearLayout.LayoutParams(dp(40), dp(40)))
         val exitButton=button("✕ EXIT") {
             stopService(android.content.Intent(this, BdgMonitoringService::class.java))
             finish()
@@ -168,11 +214,10 @@ class MainActivity : Activity() {
         predictionColumn.addView(text("PREDICTION",12f,Color.rgb(125,190,255),true).apply { gravity=Gravity.START })
         predictionColumn.addView(predictionView)
         hero.addView(predictionColumn,LinearLayout.LayoutParams(0,-2,1.35f))
-        val levelStrategy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.END or Gravity.CENTER_VERTICAL }
+        val levelColumn=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.END or Gravity.CENTER_VERTICAL }
         levelView=text("",14f,Color.rgb(180,215,255),true).apply { gravity=Gravity.END }
-        strategyView=text("",13f,Color.rgb(180,215,255),true).apply { gravity=Gravity.END }
-        levelStrategy.addView(levelView); levelStrategy.addView(strategyView)
-        hero.addView(levelStrategy,LinearLayout.LayoutParams(0,-2,1f))
+        levelColumn.addView(levelView)
+        hero.addView(levelColumn,LinearLayout.LayoutParams(0,-2,1f))
         periodView=text("",13f,Color.rgb(180,215,255),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(4),dp(2),dp(2)) }
         resultFlashView=text("",14f,Color.WHITE,true).apply { setPadding(dp(8),dp(6),dp(8),dp(6)); visibility=View.GONE }
         activityView=text("",12f,Color.rgb(180,215,255),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(2),dp(2),dp(2)) }
@@ -183,7 +228,7 @@ class MainActivity : Activity() {
             val folded = details.visibility == View.VISIBLE
             details.visibility = if (folded) View.GONE else View.VISIBLE
             dashboard.minimumHeight = if (folded) dp(0) else dp(310)
-            foldButton.text = if (folded) "⌄ EXPAND" else "⌃ MINIMIZE"
+            foldButton.text = if (folded) "+" else "−"
         }
 
         val topPanel = LinearLayout(this).apply {
@@ -225,7 +270,7 @@ class MainActivity : Activity() {
             predictionView.text = prediction
             predictionView.setTextColor(if (prediction == "BIG" || prediction == "SMALL") Color.rgb(34,211,119) else Color.rgb(255,70,70))
             levelView.text = "LABEL  " + prefs.getInt("current_level",1)
-            strategyView.text = prefs.getString("current_strategy", "").orEmpty()
+            // Dashboard shows progression label, not internal strategy name.
         }
         if (::periodView.isInitialized) periodView.text = "GAME: " + (prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—") + "   •   PERIOD: " + (prefs.getString("current_period","—") ?: "—") + "   •   SKIP: " + prefs.getInt("engine_skip",0) + "/" + prefs.getInt("engine_skip_total",0)
         if (::activityView.isInitialized) activityView.text = "ACTIVITY: " + (prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result")
