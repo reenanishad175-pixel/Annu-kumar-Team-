@@ -21,9 +21,10 @@ object TelegramReports {
     private var sending = false
 
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
+        val marker = if (prediction.side == Side.BIG) "🔵" else "🔴"
         enqueue(
             context,
-            "PREDICTION\nPeriod: $period\nPrediction: ${prediction.side}\nLabel: $level",
+            "━━━━━━━━━━━━\n🚀 LIVE PREDICTION\n\n${prediction.side} $marker\n🆔 Period: $period\n🏷️ Label: $level\n━━━━━━━━━━━━",
             "PREDICTION"
         )
     }
@@ -38,6 +39,23 @@ object TelegramReports {
 
     fun skip(context: Context, period: String, remaining: Int, level: Int) {
         enqueue(context, "SKIP • Period: $period\nLevel: $level\nRemaining: $remaining", "SKIP")
+    }
+
+    fun referral(context: Context) {
+        val prefs = context.applicationContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+        val link = prefs.getString(
+            "referral_url",
+            "https://bdgwin98.com/#/register?invitationCode=5152785394"
+        ).orEmpty().trim()
+        if (!link.startsWith("https://")) {
+            prefs.edit().putString("telegram_status", "REFERRAL LINK INVALID • Bot settings खोलें").apply()
+            return
+        }
+        enqueue(
+            context,
+            "🎁 JOIN BDG WIN\n\nReady to explore BDG WIN?\n✨ Register using our referral link and get started!\n\n👇 Register here:\n$link\n\nPlay responsibly. No guaranteed winnings.",
+            "REFERRAL"
+        )
     }
 
     private fun enqueue(context: Context, message: String, label: String) {
