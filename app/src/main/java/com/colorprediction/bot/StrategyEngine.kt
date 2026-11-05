@@ -86,8 +86,16 @@ object StrategyEngine {
         }
         if (state.level >= 8) {
             return state.copy(
-                skipRemaining = if (prediction.strategy == Strategy.TREND_BASE) 4 else 0,
-                skipTotal = if (prediction.strategy == Strategy.TREND_BASE) 4 else 0,
+                skipRemaining = when (prediction.strategy) {
+                    Strategy.TREND_BASE -> 5
+                    Strategy.LAST_THREE_B -> 2
+                    else -> 0
+                },
+                skipTotal = when (prediction.strategy) {
+                    Strategy.TREND_BASE -> 5
+                    Strategy.LAST_THREE_B -> 2
+                    else -> 0
+                },
                 pausedUntilMillis = now + 60L * 60L * 1000L,
                 lastBetPeriod = period, lastPrediction = prediction.side,
                 lastStrategy = prediction.strategy, lastOutcome = "LOSS"
@@ -95,9 +103,9 @@ object StrategyEngine {
         }
         val nextLevel = state.level + 1
         val skips = when (prediction.strategy) {
-            Strategy.TREND_BASE -> if (state.level >= 2) 4 else 0
+            Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
             Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
-            Strategy.LAST_THREE_B -> if (state.level == 1) 0 else 1
+            Strategy.LAST_THREE_B -> if (state.level == 1) 0 else 2
         }
         return state.copy(
             level = nextLevel, skipRemaining = skips, skipTotal = skips, lastBetPeriod = period,
