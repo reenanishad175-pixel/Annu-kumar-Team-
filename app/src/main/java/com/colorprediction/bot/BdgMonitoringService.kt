@@ -94,10 +94,10 @@ class BdgMonitoringService : Service() {
                   var visible=function(x){var r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0;};
                   var candidates=Array.from(document.querySelectorAll('[role=tab],[aria-selected="true"],[aria-pressed="true"],.van-tab--active,[class*="active"],[data-active="true"]')).filter(visible);
                   var activeMode=candidates.filter(function(x){var t=(x.innerText||x.textContent||'').trim(),cl=String(x.className||'');return (/true/i.test(x.getAttribute('aria-selected')||'')||/true/i.test(x.getAttribute('aria-pressed')||'')||/active/i.test(cl)||x.getAttribute('data-active')==='true')&&/(?:30\s*(?:sec|s)|1\s*(?:min|m)|3\s*(?:min|m)|5\s*(?:min|m))/i.test(t);}).map(function(x){return (x.innerText||x.textContent||'').trim();}).sort(function(a,b){return a.length-b.length;})[0];
-                  if(activeMode) pageText+='\\nACTIVE_GAME_MODE: Win Go '+activeMode;
+                  if(activeMode) pageText+='\nACTIVE_GAME_MODE: Win Go '+activeMode;
                   var rows=Array.from(document.querySelectorAll('tr,li,[class*="record"],[class*="history"],[class*="item"],[class*="row"]')).filter(visible);
-                  var normalized=rows.map(function(x){var t=(x.innerText||x.textContent||'').replace(/\s+/g,' ').trim();var ids=t.match(/\b\\d{12,20}\b/g)||[],sides=t.match(/\b(?:BIG|SMALL)\b/gi)||[];if(ids.length!==1||sides.length!==1||t.length>240)return '';var digit=t.match(/\b[0-9]\b/);return ids[0]+' '+(digit?digit[0]+' ':'')+sides[0].toUpperCase();}).filter(Boolean);
-                  if(normalized.length) pageText+='\\n'+normalized.join('\\n');
+                  var normalized=rows.map(function(x){var t=(x.innerText||x.textContent||'').replace(/\s+/g,' ').trim();var ids=t.match(/\b\d{12,20}\b/g)||[],sides=t.match(/\b(?:BIG|SMALL)\b/gi)||[];if(ids.length!==1||sides.length!==1||t.length>240)return '';var digit=t.match(/\b[0-9]\b/);return ids[0]+' '+(digit?digit[0]+' ':'')+sides[0].toUpperCase();}).filter(Boolean);
+                  if(normalized.length) pageText+='\n'+normalized.join('\n');
                   window.AndroidBdg.onPageText(pageText);
                 } catch(e) {}
               }
