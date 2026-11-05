@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Bundle
 import android.graphics.Color
 import android.view.Gravity
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.JavascriptInterface
@@ -12,6 +13,7 @@ import android.text.InputType
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.widget.FrameLayout
 
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("bot_settings", Context.MODE_PRIVATE) }
@@ -49,36 +51,15 @@ class MainActivity : Activity() {
     }
 
     private fun panel():LinearLayout = LinearLayout(this).apply {
-        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(14),dp(16),dp(14),dp(16))
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(14),dp(12),dp(14),dp(12))
         setBackgroundColor(Color.rgb(20,29,48))
     }
 
     private fun showBdg() {
-        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(6),dp(4),dp(6),dp(4)) }
-        val dashboard=panel().apply { minimumHeight=dp(245) }
-        val logo=ImageView(this).apply {
-            setImageResource(R.drawable.ic_color_bot_logo)
-            scaleType=ImageView.ScaleType.FIT_CENTER
-            alpha=0.96f
-        }
-        dashboard.addView(logo, LinearLayout.LayoutParams(dp(68),dp(68)).apply { gravity=Gravity.CENTER })
-        dashboard.addView(text("COLOR PREDICTION BOT",20f,Color.WHITE,true))
-        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
-        predictionView=text("",22f,Color.RED,true).apply { setPadding(dp(8),dp(13),dp(8),dp(13)) }
-        periodView=text("",14f,Color.WHITE,true)
-        resultFlashView=text("",19f,Color.WHITE,true).apply {
-            setPadding(dp(8),dp(8),dp(8),dp(8))
-            visibility=android.view.View.GONE
-        }
-        activityView=text("",13f,Color.LTGRAY)
-        dashboard.addView(status)
-        dashboard.addView(predictionView)
-        dashboard.addView(periodView)
-        dashboard.addView(resultFlashView)
-        dashboard.addView(activityView)
-        refreshDashboard()
-        // Expanded wrap-content dashboard stays fully visible above the game WebView.
-        root.addView(dashboard,LinearLayout.LayoutParams(-1,-2))
+        val screen = FrameLayout(this).apply { setBackgroundColor(bg) }
+
+        // The game WebView always occupies the complete screen. The dashboard is
+        // a separate overlay, so folding it never resizes or shrinks the game.
         web=WebView(this).apply {
             settings.javaScriptEnabled=true
             settings.domStorageEnabled=true
@@ -92,8 +73,57 @@ class MainActivity : Activity() {
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
-        root.addView(web,LinearLayout.LayoutParams(-1,0,1f))
-        setContentView(root)
+        screen.addView(web, FrameLayout.LayoutParams(-1,-1))
+
+        val dashboard=panel().apply {
+            minimumHeight=dp(245)
+            elevation=dp(12).toFloat()
+        }
+        val header=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER_VERTICAL
+        }
+        val logo=ImageView(this).apply {
+            setImageResource(R.drawable.ic_color_bot_logo)
+            scaleType=ImageView.ScaleType.FIT_CENTER
+            alpha=0.96f
+        }
+        header.addView(logo,LinearLayout.LayoutParams(dp(54),dp(54)))
+        val title=text("COLOR PREDICTION BOT",18f,Color.WHITE,true).apply { gravity=Gravity.CENTER_VERTICAL }
+        header.addView(title,LinearLayout.LayoutParams(0,-2,1f))
+        val foldButton=button("⌃ MINIMIZE") { }
+        header.addView(foldButton,LinearLayout.LayoutParams(-2,dp(44)))
+        dashboard.addView(header)
+
+        val details=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            gravity=Gravity.CENTER
+        }
+        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
+        predictionView=text("",22f,Color.RED,true).apply { setPadding(dp(8),dp(13),dp(8),dp(13)) }
+        periodView=text("",14f,Color.WHITE,true)
+        resultFlashView=text("",19f,Color.WHITE,true).apply {
+            setPadding(dp(8),dp(8),dp(8),dp(8))
+            visibility=View.GONE
+        }
+        activityView=text("",13f,Color.LTGRAY)
+        details.addView(status)
+        details.addView(predictionView)
+        details.addView(periodView)
+        details.addView(resultFlashView)
+        details.addView(activityView)
+        dashboard.addView(details)
+        refreshDashboard()
+
+        foldButton.setOnClickListener {
+            val folded = details.visibility == View.VISIBLE
+            details.visibility = if (folded) View.GONE else View.VISIBLE
+            dashboard.minimumHeight = if (folded) dp(0) else dp(245)
+            foldButton.text = if (folded) "⌄ EXPAND" else "⌃ MINIMIZE"
+        }
+
+        screen.addView(dashboard,FrameLayout.LayoutParams(-1,-2,Gravity.TOP))
+        setContentView(screen)
     }
 
     private inner class BdgJavascriptBridge {
@@ -126,9 +156,9 @@ class MainActivity : Activity() {
                 resultFlashView.text=if(outcome=="WIN") "✓  YOUR WIN!" else "✕  YOUR LOSS"
                 resultFlashView.setTextColor(Color.WHITE)
                 resultFlashView.setBackgroundColor(if(outcome=="WIN") Color.rgb(20,150,75) else Color.rgb(190,45,45))
-                resultFlashView.visibility=android.view.View.VISIBLE
+                resultFlashView.visibility=View.VISIBLE
                 handler.removeCallbacksAndMessages(null)
-                handler.postDelayed({ if(::resultFlashView.isInitialized) resultFlashView.visibility=android.view.View.GONE },5000)
+                handler.postDelayed({ if(::resultFlashView.isInitialized) resultFlashView.visibility=View.GONE },5000)
             }
         }
     }
