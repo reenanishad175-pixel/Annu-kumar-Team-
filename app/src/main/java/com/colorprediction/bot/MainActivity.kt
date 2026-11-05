@@ -60,22 +60,23 @@ class MainActivity : Activity() {
         body.addView(statusCard)
         val pred=panel()
         pred.addView(text("CURRENT PREDICTION",14f,Color.LTGRAY,true))
-        pred.addView(text("Waiting for verified BDG result data",20f,Color.CYAN,true))
-        pred.addView(text("LEVEL 1 / 8     •     STRATEGY: AUTO",14f,Color.WHITE,true))
+        pred.addView(text(prefs.getString("current_prediction","WAITING") ?: "WAITING",20f,Color.CYAN,true))
+        pred.addView(text("LEVEL ${prefs.getInt("current_level",1)} / 8     •     ${prefs.getString("current_strategy","Waiting for BDG data") ?: "Waiting for BDG data"}",14f,Color.WHITE,true))
+        pred.addView(text("PERIOD: ${prefs.getString("current_period","—") ?: "—"}",13f,Color.LTGRAY))
         body.addView(pred)
         body.addView(button(if(expanded) "MINIMIZE DASHBOARD" else "EXPAND DASHBOARD") {
             expanded=!expanded; showDashboard()
         })
         if(expanded) {
             body.addView(text("RECENT ACTIVITY",16f,Color.WHITE,true))
-            body.addView(text("No confirmed betting period yet",13f,Color.LTGRAY))
+            body.addView(text(prefs.getString("recent_activity","No confirmed betting period yet") ?: "No confirmed betting period yet",13f,Color.LTGRAY))
             body.addView(button("BDG LOGIN PAGE") { showBdg() })
             body.addView(button("BDG LOGIN LINK SETTINGS") { showLoginLinkSettings() })
             body.addView(button("BOT SETTINGS") { showSettings() })
             body.addView(text("Strategy engine added • BDG auto-reading integration pending",13f,Color.YELLOW))
             body.addView(text("Live predictions remain disabled until BDG period/result detection is verified.",13f,Color.YELLOW))
             body.addView(text("Prediction rules are not a guarantee of game outcomes.",11f,Color.LTGRAY))
-        } else body.addView(text("LEVEL 1  •  SKIP: 0",15f,Color.CYAN,true))
+        } else body.addView(text("LEVEL ${prefs.getInt("current_level",1)}  •  ${prefs.getString("current_prediction","WAITING") ?: "WAITING"}  •  SKIP: ${prefs.getInt("engine_skip",0)}",15f,Color.CYAN,true))
         scroll.addView(body); root.addView(scroll); setContentView(root)
     }
 
@@ -115,7 +116,7 @@ class MainActivity : Activity() {
             val message = if (snapshot == null) {
                 "BDG PAGE OPEN • Waiting for readable period + 3 results"
             } else {
-                "BDG TEXT DETECTED • Period ${snapshot.currentPeriod} • ${snapshot.recentOutcomes.size} result rows • awaiting live validation"
+                BdgAutomationController.process(this@MainActivity, snapshot)
             }
             prefs.edit().putString("bdg_read_status", message).apply()
             runOnUiThread {
