@@ -63,6 +63,7 @@ class MainActivity : Activity() {
         pred.addView(text(prefs.getString("current_prediction","WAITING") ?: "WAITING",20f,Color.CYAN,true))
         pred.addView(text("LEVEL ${prefs.getInt("current_level",1)} / 8     •     ${prefs.getString("current_strategy","Waiting for BDG data") ?: "Waiting for BDG data"}",14f,Color.WHITE,true))
         pred.addView(text("PERIOD: ${prefs.getString("current_period","—") ?: "—"}",13f,Color.LTGRAY))
+        pred.addView(text("SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}",13f,Color.LTGRAY))
         body.addView(pred)
         body.addView(button(if(expanded) "MINIMIZE DASHBOARD" else "EXPAND DASHBOARD") {
             expanded=!expanded; showDashboard()
@@ -76,7 +77,7 @@ class MainActivity : Activity() {
             body.addView(text("Strategy engine added • BDG auto-reading integration pending",13f,Color.YELLOW))
             body.addView(text("Live predictions remain disabled until BDG period/result detection is verified.",13f,Color.YELLOW))
             body.addView(text("Prediction rules are not a guarantee of game outcomes.",11f,Color.LTGRAY))
-        } else body.addView(text("LEVEL ${prefs.getInt("current_level",1)}  •  ${prefs.getString("current_prediction","WAITING") ?: "WAITING"}  •  SKIP: ${prefs.getInt("engine_skip",0)}",15f,Color.CYAN,true))
+        } else body.addView(text("LEVEL ${prefs.getInt("current_level",1)}  •  ${prefs.getString("current_prediction","WAITING") ?: "WAITING"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}",15f,Color.CYAN,true))
         scroll.addView(body); root.addView(scroll); setContentView(root)
     }
 
