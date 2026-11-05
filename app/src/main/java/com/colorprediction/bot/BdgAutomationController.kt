@@ -46,7 +46,17 @@ object BdgAutomationController {
         }
 
         val pendingStillExists = prefs.getString("pending_period", null) != null
-        if (!pendingStillExists && snapshot.currentPeriod != state.lastProcessedPeriod) {
+        val sessionKey = activeSessionKey()
+        if (!pendingStillExists && sessionKey == null) {
+            prefs.edit().putString("bot_status", "OUTSIDE SESSION • Next session starts at 10:00, 15:00, 18:00 or 21:00").apply()
+            return prefs.getString("bot_status", "OUTSIDE SESSION").orEmpty()
+        }
+        if (!pendingStillExists && sessionKey != null && snapshot.currentPeriod != state.lastProcessedPeriod) {
+            val sentCount = prefs.getInt("session_predictions_${sessionKey}", 0)
+            if (sentCount >= 5) {
+                prefs.edit().putString("bot_status", "SESSION COMPLETE • 5 predictions sent").apply()
+                return prefs.getString("bot_status", "").orEmpty()
+            }
             val newestThree = outcomes.take(3).asReversed().map { it.side }
             val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, newestThree)
             state = update.state
@@ -54,8 +64,8 @@ object BdgAutomationController {
             val prediction = update.prediction
             if (prediction != null) {
                 val level = state.level
-                val sessionKey = todaySessionKey()
                 prefs.edit()
+                    .putInt("session_predictions_${sessionKey}", sentCount + 1)
                     .putString("pending_period", snapshot.currentPeriod)
                     .putString("pending_side", prediction.side.name)
                     .putString("pending_strategy", prediction.strategy.name)
@@ -111,15 +121,15 @@ object BdgAutomationController {
             .apply()
     }
 
-    private fun todaySessionKey(): String {
+    private fun activeSessionKey(): String? {
         val cal = Calendar.getInstance()
         val hour = cal.get(Calendar.HOUR_OF_DAY)
         val sessionHour = when {
-            hour < 10 -> 10
-            hour < 15 -> 15
-            hour < 18 -> 18
-            hour < 21 -> 21
-            else -> 21
+            hour in 10..14 -> 10
+            hour in 15..17 -> 15
+            hour in 18..20 -> 18
+            hour in 21..23 -> 21
+            else -> return null
         }
         return SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + "_$sessionHour"
     }
