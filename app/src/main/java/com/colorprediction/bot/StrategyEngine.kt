@@ -33,6 +33,15 @@ data class EngineUpdate(
 )
 
 object StrategyEngine {
+    /** Recover safely when a pending period has disappeared from BDG history. */
+    fun recoverExpiredPending(state: EngineState, latestPeriod: String): EngineState =
+        state.copy(
+            level = 1,
+            skipRemaining = 0,
+            skipTotal = 0,
+            lastProcessedPeriod = latestPeriod
+        )
+
     fun predict(lastThree: List<Side>): Prediction? {
         if (lastThree.size != 3) return null
         val (a, b, c) = lastThree
