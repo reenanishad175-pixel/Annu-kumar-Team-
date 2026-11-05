@@ -55,8 +55,14 @@ class MainActivity : Activity() {
 
     private fun showBdg() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(6),dp(4),dp(6),dp(4)) }
-        val dashboard=panel().apply { minimumHeight=dp(210) }
-        dashboard.addView(text("🦁 COLOR PREDICTION BOT",19f,Color.WHITE,true))
+        val dashboard=panel().apply { minimumHeight=dp(245) }
+        val logo=ImageView(this).apply {
+            setImageResource(R.drawable.ic_color_bot_logo)
+            scaleType=ImageView.ScaleType.FIT_CENTER
+            alpha=0.96f
+        }
+        dashboard.addView(logo, LinearLayout.LayoutParams(dp(68),dp(68)).apply { gravity=Gravity.CENTER })
+        dashboard.addView(text("COLOR PREDICTION BOT",20f,Color.WHITE,true))
         status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
         predictionView=text("",22f,Color.RED,true).apply { setPadding(dp(8),dp(13),dp(8),dp(13)) }
         periodView=text("",14f,Color.WHITE,true)
