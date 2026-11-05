@@ -106,8 +106,8 @@ object StrategyEngine {
         // (Pattern B) skips two. Trend Base keeps its Level 1 / Level 2-8 rule.
         val skips = when (prediction.strategy) {
             Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE, Strategy.LAST_THREE_B -> 1
-            Strategy.LAST_THREE_A -> 2
+            Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
+            Strategy.LAST_THREE_B -> 2
         }
         if (state.level >= 8) {
             return state.copy(
