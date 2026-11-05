@@ -23,7 +23,7 @@ object TelegramReports {
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
         enqueue(
             context,
-            "PREDICTION\nPeriod: $period\nPrediction: ${prediction.side}\nLabel: ${prediction.strategy.title}",
+            "PREDICTION\nPeriod: $period\nPrediction: ${prediction.side}\nLabel: $level",
             "PREDICTION"
         )
     }
