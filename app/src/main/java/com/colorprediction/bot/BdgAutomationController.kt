@@ -26,7 +26,7 @@ object BdgAutomationController {
                 if (side != null && strategy != null) {
                     val prediction = Prediction(side, strategy)
                     val level = prefs.getInt("pending_level", state.level)
-                    val sessionKey = prefs.getString("pending_session_key", todaySessionKey()).orEmpty()
+                    val sessionKey = prefs.getString("pending_session_key", (activeSessionKey() ?: "unknown")).orEmpty()
                     state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side)
                     saveState(prefs, state)
                     TelegramReports.result(
