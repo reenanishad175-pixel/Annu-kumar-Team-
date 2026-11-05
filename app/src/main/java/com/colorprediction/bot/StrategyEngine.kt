@@ -93,7 +93,7 @@ object StrategyEngine {
         }
         val nextLevel = state.level + 1
         val skips = when (prediction.strategy) {
-            Strategy.TREND_BASE -> 4
+            Strategy.TREND_BASE -> if (state.level >= 3) 4 else 0
             Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
             Strategy.LAST_THREE_B -> if (state.level == 1) 0 else 1
         }
