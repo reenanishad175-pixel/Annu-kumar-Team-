@@ -17,6 +17,17 @@ class StrategyEngineTest {
         assertEquals(Prediction(Side.BIG, Strategy.LAST_THREE_B), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.BIG)))
     }
 
+    @Test fun firstHistoryReadOnlyEstablishesBaselineAndSkips() {
+        val result = StrategyEngine.onNewPeriod(
+            EngineState(),
+            "FIRST_OPEN_PERIOD",
+            s(Side.BIG, Side.BIG, Side.BIG)
+        )
+        assertNull(result.prediction)
+        assertEquals("FIRST_OPEN_PERIOD", result.state.lastProcessedPeriod)
+        assertTrue(result.status.startsWith("SKIP"))
+    }
+
     @Test fun unmatchedPatternDoesNotPredict() {
         assertNull(StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.SMALL, Side.BIG)))
         assertNull(StrategyEngine.predict(s(Side.BIG, Side.SMALL)))
