@@ -158,8 +158,13 @@ class MainActivity : Activity() {
 
     private fun refreshDashboard(statusMessage: String? = null) {
         if (::status.isInitialized) status.text = statusMessage ?: (prefs.getString("bdg_read_status","Waiting for BDG data") ?: "Waiting for BDG data")
-        if (::predictionView.isInitialized) predictionView.text =
-            "PREDICTION: ${prefs.getString("current_prediction","WAITING") ?: "WAITING"}  •  LEVEL ${prefs.getInt("current_level",1)}/8"
+        if (::predictionView.isInitialized) {
+            val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
+            val strategy = prefs.getString("current_strategy", "").orEmpty()
+            val strategyLabel = if (strategy.isBlank()) "" else "  •  $strategy"
+            predictionView.text =
+                "PREDICTION: $prediction  •  LEVEL ${prefs.getInt("current_level",1)}/8$strategyLabel"
+        }
         if (::periodView.isInitialized) periodView.text =
             "PERIOD: ${prefs.getString("current_period","—") ?: "—"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}"
         if (::activityView.isInitialized) activityView.text =
