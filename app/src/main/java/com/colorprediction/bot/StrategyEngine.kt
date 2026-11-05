@@ -86,7 +86,9 @@ object StrategyEngine {
         }
         if (state.level >= 8) {
             return state.copy(
-                skipRemaining = 0, skipTotal = 0, pausedUntilMillis = now + 60L * 60L * 1000L,
+                skipRemaining = if (prediction.strategy == Strategy.TREND_BASE) 4 else 0,
+                skipTotal = if (prediction.strategy == Strategy.TREND_BASE) 4 else 0,
+                pausedUntilMillis = now + 60L * 60L * 1000L,
                 lastBetPeriod = period, lastPrediction = prediction.side,
                 lastStrategy = prediction.strategy, lastOutcome = "LOSS"
             )
