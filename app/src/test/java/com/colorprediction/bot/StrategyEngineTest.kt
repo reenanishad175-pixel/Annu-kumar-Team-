@@ -49,7 +49,7 @@ class StrategyEngineTest {
         )!!
         assertEquals(Strategy.LAST_THREE_B, strategy3a.strategy)
         assertEquals("Strategy 3", strategy3a.strategy.title)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "P1", strategy3a, Side.BIG, 1000L).skipRemaining)
+        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "P1", strategy3a, Side.SMALL, 1000L).skipRemaining)
 
         val strategy3b = StrategyEngine.predict(
             StrategyEngine.patternFromRecentResults(s(Side.BIG, Side.BIG, Side.SMALL, Side.SMALL, Side.BIG))
@@ -70,7 +70,7 @@ class StrategyEngineTest {
         )!!
         assertEquals(Strategy.LAST_THREE_A, strategy4b.strategy)
         assertEquals("Strategy 4", strategy4b.strategy.title)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "P4", strategy4b, Side.BIG, 1000L).skipRemaining)
+        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "P4", strategy4b, Side.SMALL, 1000L).skipRemaining)
     }
 
     @Test fun dashboardPatternNumbersMatchTheirSkipRules() {
