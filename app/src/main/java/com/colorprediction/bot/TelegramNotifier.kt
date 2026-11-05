@@ -8,7 +8,7 @@ import kotlin.concurrent.thread
 
 /** Telegram sender with visible API error details; never logs the bot token. */
 object TelegramNotifier {
-    fun send(token: String, chatId: String, message: String, callback: (Boolean, String) -> Unit = { _, _ -> }) {
+    fun send(token: String, chatId: String, message: String, parseMode: String? = null, callback: (Boolean, String) -> Unit = { _, _ -> }) {
         thread(name = "telegram-send") {
             var connection: HttpURLConnection? = null
             var success = false
@@ -22,7 +22,7 @@ object TelegramNotifier {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
                 }
-                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&text=" + URLEncoder.encode(message, "UTF-8")
+                val body = "chat_id=" + URLEncoder.encode(chatId, "UTF-8") + "&text=" + URLEncoder.encode(message, "UTF-8") + (parseMode?.let { "&parse_mode=" + URLEncoder.encode(it, "UTF-8") } ?: "")
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -44,7 +44,7 @@ object TelegramNotifier {
     }
 
     fun testConnection(token: String, chatId: String, callback: (Boolean, String) -> Unit) {
-        send(token, chatId, "Telegram connection test successful. Annu Kumar Team is connected.", callback)
+        send(token, chatId, "Telegram connection test successful. Annu Kumar Team is connected.", null, callback)
     }
 
 }
