@@ -38,8 +38,13 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        SessionScheduler.scheduleAll(this)
         showLoginLinkSettings()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) stopService(android.content.Intent(this, BdgMonitoringService::class.java))
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -140,6 +145,11 @@ class MainActivity : Activity() {
         header.addView(title,LinearLayout.LayoutParams(0,-2,1f))
         val foldButton=button("⌃ MINIMIZE") { }
         header.addView(foldButton,LinearLayout.LayoutParams(-2,dp(44)))
+        val exitButton=button("✕ EXIT") {
+            stopService(android.content.Intent(this, BdgMonitoringService::class.java))
+            finish()
+        }
+        header.addView(exitButton,LinearLayout.LayoutParams(-2,dp(44)))
         dashboard.addView(header)
 
         val details=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(4),dp(5),dp(4),dp(2)) }
@@ -210,7 +220,7 @@ class MainActivity : Activity() {
             val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
             predictionView.text = prediction
             predictionView.setTextColor(if (prediction == "BIG" || prediction == "SMALL") Color.rgb(34,211,119) else Color.rgb(255,70,70))
-            levelView.text = "LEVEL  " + prefs.getInt("current_level",1) + "/8"
+            levelView.text = "LEVEL  " + prefs.getInt("current_level",1)
             strategyView.text = prefs.getString("current_strategy", "").orEmpty()
         }
         if (::periodView.isInitialized) periodView.text = "GAME: " + (prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—") + "   •   PERIOD: " + (prefs.getString("current_period","—") ?: "—") + "   •   SKIP: " + prefs.getInt("engine_skip",0) + "/" + prefs.getInt("engine_skip_total",0)
