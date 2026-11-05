@@ -40,8 +40,8 @@ class StrategyEngineTest {
     @Test fun dashboardPatternNumbersMatchTheirSkipRules() {
         val patternA = StrategyEngine.predict(s(Side.SMALL, Side.BIG, Side.BIG))!!
         val patternB = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL))!!
-        assertEquals("Strategy 4 • Last 3 Pattern A", patternA.strategy.title)
-        assertEquals("Strategy 3 • Last 3 Pattern B", patternB.strategy.title)
+        assertEquals("Strategy 4", patternA.strategy.title)
+        assertEquals("Strategy 3", patternB.strategy.title)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "A", patternA, Side.BIG, 1000L).skipRemaining)
         assertEquals(2, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
     }
