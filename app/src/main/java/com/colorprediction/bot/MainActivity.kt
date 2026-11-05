@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var status: TextView
     private lateinit var telegramStatus: TextView
+    private lateinit var liveReadMessage: TextView
     private lateinit var predictionView: TextView
     private lateinit var periodView: TextView
     private lateinit var activityView: TextView
@@ -98,7 +99,7 @@ class MainActivity : Activity() {
                         val monitorIntent = android.content.Intent(this@MainActivity, BdgMonitoringService::class.java)
                         if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(monitorIntent) else startService(monitorIntent)
                     }
-                    view.evaluateJavascript("""(function(){try{var sid='color-bot-bet-spacer';function findSubmit(){var a=Array.from(document.querySelectorAll('button,[role=button],.van-button,.bet-btn,.submit-btn'));return a.find(function(x){return /submit|place bet|confirm bet|bet now/i.test((x.innerText||x.getAttribute('aria-label')||'').trim());});}function makeRoom(){var b=findSubmit();if(!b)return;var panel=b.closest('.van-popup,[role=dialog],.bet-panel,.betting-panel,.bet-dialog')||(b.parentElement&&b.parentElement.parentElement);if(!panel)return;var r=b.getBoundingClientRect();var s=document.getElementById(sid);if(!s){s=document.createElement('div');s.id=sid;s.setAttribute('aria-hidden','true');s.style.cssText='display:block;width:100%;height:88px;min-height:88px;pointer-events:none;';panel.insertAdjacentElement('afterend',s);}var bottom=innerHeight-90;if(r.bottom>bottom||r.top<0){b.scrollIntoView({block:'center',behavior:'smooth'});}}document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('button,[role=button],.van-button');if(t&&/big|small|submit|bet|confirm/i.test((t.innerText||t.getAttribute('aria-label')||'').trim())){setTimeout(makeRoom,180);setTimeout(makeRoom,550);setTimeout(makeRoom,1000);}},true);document.addEventListener('input',function(){setTimeout(makeRoom,250);},true);if(window.__colorBotBetObserver)window.__colorBotBetObserver.disconnect();window.__colorBotBetObserver=new MutationObserver(function(){setTimeout(makeRoom,150);});window.__colorBotBetObserver.observe(document.body,{childList:true,subtree:true});}catch(e){}window.__colorBotReadNow=function(){try{if(window.AndroidBdg&&document.body){var pageText=document.body.innerText||'';var visible=function(x){var r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0;};var candidates=Array.from(document.querySelectorAll('[role=tab],[aria-selected="true"],[aria-pressed="true"],.van-tab--active,[class*="active"],[data-active="true"]')).filter(visible);var activeMode=candidates.filter(function(x){var t=(x.innerText||x.textContent||'').trim(),cl=String(x.className||'');return (/true/i.test(x.getAttribute('aria-selected')||'')||/true/i.test(x.getAttribute('aria-pressed')||'')||/active/i.test(cl)||x.getAttribute('data-active')==='true')&&/(?:30\s*(?:sec|s)|1\s*(?:min|m)|3\s*(?:min|m)|5\s*(?:min|m))/i.test(t);}).map(function(x){return (x.innerText||x.textContent||'').trim();}).sort(function(a,b){return a.length-b.length;})[0];if(activeMode)pageText+='\nACTIVE_GAME_MODE: '+activeMode;var rows=Array.from(document.querySelectorAll('tr,li,[class*="record"],[class*="history"],[class*="item"],[class*="row"]')).filter(visible);var normalized=rows.map(function(x){var t=(x.innerText||x.textContent||'').replace(/\s+/g,' ').trim();var ids=t.match(/\b\d{12,20}\b/g)||[],sides=t.match(/\b(?:BIG|SMALL)\b/gi)||[];if(ids.length!==1||sides.length!==1||t.length>240)return '';var digit=t.match(/\b[0-9]\b/);return ids[0]+' '+(digit?digit[0]+' ':'')+sides[0].toUpperCase();}).filter(Boolean);if(normalized.length)pageText+='\n'+normalized.join('\n');window.AndroidBdg.onPageText(pageText);}}catch(e){}};window.__colorBotReadNow();if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(window.__colorBotReadNow,2500);})();""", null)
+                    view.evaluateJavascript("""(function(){try{var sid='color-bot-bet-spacer';function findSubmit(){var a=Array.from(document.querySelectorAll('button,[role=button],.van-button,.bet-btn,.submit-btn'));return a.find(function(x){return /submit|place bet|confirm bet|bet now/i.test((x.innerText||x.getAttribute('aria-label')||'').trim());});}function makeRoom(){var b=findSubmit();if(!b)return;var panel=b.closest('.van-popup,[role=dialog],.bet-panel,.betting-panel,.bet-dialog')||(b.parentElement&&b.parentElement.parentElement);if(!panel)return;var r=b.getBoundingClientRect();var s=document.getElementById(sid);if(!s){s=document.createElement('div');s.id=sid;s.setAttribute('aria-hidden','true');s.style.cssText='display:block;width:100%;height:88px;min-height:88px;pointer-events:none;';panel.insertAdjacentElement('afterend',s);}var bottom=innerHeight-90;if(r.bottom>bottom||r.top<0){b.scrollIntoView({block:'center',behavior:'smooth'});}}document.addEventListener('click',function(e){var t=e.target&&e.target.closest&&e.target.closest('button,[role=button],.van-button');if(t&&/big|small|submit|bet|confirm/i.test((t.innerText||t.getAttribute('aria-label')||'').trim())){setTimeout(makeRoom,180);setTimeout(makeRoom,550);setTimeout(makeRoom,1000);}},true);document.addEventListener('input',function(){setTimeout(makeRoom,250);},true);if(window.__colorBotBetObserver)window.__colorBotBetObserver.disconnect();window.__colorBotBetObserver=new MutationObserver(function(){setTimeout(makeRoom,150);});window.__colorBotBetObserver.observe(document.body,{childList:true,subtree:true});}catch(e){}window.__colorBotReadNow=function(){try{if(window.AndroidBdg&&document.body){var pageText=document.body.innerText||'';var visible=function(x){var r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)!==0;};var candidates=Array.from(document.querySelectorAll('[role=tab],[aria-selected="true"],[aria-pressed="true"],.van-tab--active,[class*="active"],[data-active="true"]')).filter(visible);var activeMode=candidates.filter(function(x){var t=(x.innerText||x.textContent||'').trim(),cl=String(x.className||'');return (/true/i.test(x.getAttribute('aria-selected')||'')||/true/i.test(x.getAttribute('aria-pressed')||'')||/active/i.test(cl)||x.getAttribute('data-active')==='true')&&/(?:30\s*(?:sec|s)|1\s*(?:min|m)|3\s*(?:min|m)|5\s*(?:min|m))/i.test(t);}).map(function(x){return (x.innerText||x.textContent||'').trim();}).sort(function(a,b){return a.length-b.length;})[0];if(activeMode)pageText+='\nACTIVE_GAME_MODE: '+activeMode;var rows=Array.from(document.querySelectorAll('tr,li,[class*="record"],[class*="history"],[class*="item"],[class*="row"]')).filter(visible);var normalized=rows.map(function(x){var t=(x.innerText||x.textContent||'').replace(/\s+/g,' ').trim();var ids=t.match(/\b\d{12,20}\b/g)||[],sides=t.match(/\b(?:BIG|SMALL)\b/gi)||[];if(ids.length!==1||sides.length!==1||t.length>240)return '';var digit=t.match(/\b[0-9]\b/);return ids[0]+' '+(digit?digit[0]+' ':'')+sides[0].toUpperCase();}).filter(Boolean);if(normalized.length)pageText+='\n'+normalized.join('\n');window.AndroidBdg.onPageText(pageText);}}catch(e){}};window.__colorBotReadNow();if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(window.__colorBotReadNow,2000);})();""", null)
                 }
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
@@ -106,30 +107,37 @@ class MainActivity : Activity() {
         screen.addView(web, FrameLayout.LayoutParams(-1,-1))
 
         val dashboard=panel().apply {
-            minimumHeight=dp(245)
+            minimumHeight=dp(310)
             elevation=dp(12).toFloat()
         }
         val telegramBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(2), dp(6), dp(2))
-            setBackgroundColor(Color.rgb(13, 34, 55))
+            setBackgroundColor(Color.WHITE)
         }
+        val messageColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
         telegramStatus = text(
             prefs.getString("telegram_status", "TELEGRAM • NOT CHECKED") ?: "TELEGRAM • NOT CHECKED",
-            10f, Color.LTGRAY, true
-        ).apply { gravity = Gravity.CENTER_VERTICAL or Gravity.START; setPadding(dp(4), dp(5), dp(4), dp(5)) }
-        telegramBar.addView(telegramStatus, LinearLayout.LayoutParams(0, dp(34), 1f))
+            12f, Color.rgb(20, 82, 160), true
+        ).apply { gravity = Gravity.CENTER_VERTICAL or Gravity.START; maxLines = 1; setPadding(dp(4), dp(2), dp(4), 0) }
+        liveReadMessage = text(
+            prefs.getString("bdg_read_status", "BDG • Waiting for page data") ?: "BDG • Waiting for page data",
+            11f, Color.rgb(20, 82, 160), false
+        ).apply { gravity = Gravity.CENTER_VERTICAL or Gravity.START; maxLines = 1; setPadding(dp(4), 0, dp(4), dp(2)) }
+        messageColumn.addView(telegramStatus, LinearLayout.LayoutParams(-1, 0, 1f))
+        messageColumn.addView(liveReadMessage, LinearLayout.LayoutParams(-1, 0, 1f))
+        telegramBar.addView(messageColumn, LinearLayout.LayoutParams(0, dp(54), 1f))
         val telegramSettings = TextView(this).apply {
             text = "⚙ TELEGRAM"
-            textSize = 10f
+            textSize = 12f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setPadding(dp(10), dp(6), dp(10), dp(6))
             setBackgroundColor(blue)
             setOnClickListener { showTelegramSettingsDialog() }
         }
-        telegramBar.addView(telegramSettings, LinearLayout.LayoutParams(-2, dp(32)))
+        telegramBar.addView(telegramSettings, LinearLayout.LayoutParams(-2, dp(44)))
 
         val header=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
@@ -153,34 +161,34 @@ class MainActivity : Activity() {
         dashboard.addView(header)
 
         val details=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(4),dp(5),dp(4),dp(2)) }
-        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",11f,Color.rgb(255,70,70),true)
+        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.rgb(125,190,255),true)
         val hero=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(4),dp(2),dp(4),dp(2)) }
         val predictionColumn=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
         predictionView=text("WAITING",30f,Color.rgb(34,211,119),true).apply { gravity=Gravity.START; setPadding(dp(5),dp(1),dp(5),dp(1)) }
-        predictionColumn.addView(text("PREDICTION",10f,Color.rgb(255,70,70),true).apply { gravity=Gravity.START })
+        predictionColumn.addView(text("PREDICTION",12f,Color.rgb(125,190,255),true).apply { gravity=Gravity.START })
         predictionColumn.addView(predictionView)
         hero.addView(predictionColumn,LinearLayout.LayoutParams(0,-2,1.35f))
         val levelStrategy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.END or Gravity.CENTER_VERTICAL }
-        levelView=text("",12f,Color.rgb(255,70,70),true).apply { gravity=Gravity.END }
-        strategyView=text("",12f,Color.rgb(255,70,70),true).apply { gravity=Gravity.END }
+        levelView=text("",14f,Color.rgb(180,215,255),true).apply { gravity=Gravity.END }
+        strategyView=text("",13f,Color.rgb(180,215,255),true).apply { gravity=Gravity.END }
         levelStrategy.addView(levelView); levelStrategy.addView(strategyView)
         hero.addView(levelStrategy,LinearLayout.LayoutParams(0,-2,1f))
-        periodView=text("",11f,Color.rgb(255,70,70),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(4),dp(2),dp(2)) }
+        periodView=text("",13f,Color.rgb(180,215,255),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(4),dp(2),dp(2)) }
         resultFlashView=text("",14f,Color.WHITE,true).apply { setPadding(dp(8),dp(6),dp(8),dp(6)); visibility=View.GONE }
-        activityView=text("",10f,Color.rgb(255,70,70),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(2),dp(2),dp(2)) }
+        activityView=text("",12f,Color.rgb(180,215,255),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(2),dp(2),dp(2)) }
         details.addView(status); details.addView(hero); details.addView(periodView); details.addView(resultFlashView); details.addView(activityView)
         dashboard.addView(details)
         refreshDashboard()
         foldButton.setOnClickListener {
             val folded = details.visibility == View.VISIBLE
             details.visibility = if (folded) View.GONE else View.VISIBLE
-            dashboard.minimumHeight = if (folded) dp(0) else dp(245)
+            dashboard.minimumHeight = if (folded) dp(0) else dp(310)
             foldButton.text = if (folded) "⌄ EXPAND" else "⌃ MINIMIZE"
         }
 
         val topPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(telegramBar, LinearLayout.LayoutParams(-1, dp(40)))
+            addView(telegramBar, LinearLayout.LayoutParams(-1, dp(64)))
             addView(dashboard, LinearLayout.LayoutParams(-1, -2))
         }
         screen.addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
@@ -207,13 +215,9 @@ class MainActivity : Activity() {
         if (::telegramStatus.isInitialized) {
             val telegram = prefs.getString("telegram_status", "TELEGRAM • NOT CHECKED") ?: "TELEGRAM • NOT CHECKED"
             telegramStatus.text = telegram
-            telegramStatus.setTextColor(
-                when {
-                    telegram.startsWith("SENT") || telegram.startsWith("CONNECTED") -> Color.rgb(60, 220, 130)
-                    telegram.startsWith("FAILED") || telegram.startsWith("NOT CONNECTED") || telegram.startsWith("TOKEN/CHAT") -> Color.rgb(255, 95, 95)
-                    else -> Color.rgb(255, 205, 90)
-                }
-            )
+            telegramStatus.setTextColor(Color.rgb(20, 82, 160))
+            liveReadMessage.text = prefs.getString("bdg_read_status", "BDG • Waiting for page data") ?: "BDG • Waiting for page data"
+            liveReadMessage.setTextColor(Color.rgb(20, 82, 160))
         }
         if (::status.isInitialized) status.text = statusMessage ?: (prefs.getString("bdg_read_status","Waiting for BDG data") ?: "Waiting for BDG data")
         if (::predictionView.isInitialized) {
