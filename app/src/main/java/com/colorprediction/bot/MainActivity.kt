@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.graphics.Color
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.JavascriptInterface
@@ -32,6 +33,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         SessionScheduler.scheduleAll(this)
         showLoginLinkSettings()
     }
@@ -68,7 +70,7 @@ class MainActivity : Activity() {
             webViewClient=object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    view.evaluateJavascript("(function(){if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(function(){try{if(window.AndroidBdg&&document.body){var t=document.body.innerText||'';window.AndroidBdg.onPageText(t);}}catch(e){}},2500);})();", null)
+                    view.evaluateJavascript("(function(){try{var id='color-bot-safe-bottom';var st=document.getElementById(id);if(!st){st=document.createElement('style');st.id=id;document.head.appendChild(st);}st.textContent='html{scroll-padding-bottom:100px!important}body{padding-bottom:100px!important;box-sizing:border-box!important}button,[role=button],.van-button,.bet-btn,.submit-btn{scroll-margin-bottom:100px!important}';var lift=function(){document.querySelectorAll('button,[role=button],.van-button,.bet-btn,.submit-btn').forEach(function(el){var r=el.getBoundingClientRect();var cs=getComputedStyle(el);if((cs.position==='fixed'||cs.position==='sticky')&&r.bottom>innerHeight-90&&r.width>90&&r.height>24&&r.height<110){if(!el.dataset.colorBotLifted){el.dataset.colorBotLifted='1';el.style.setProperty('transform','translateY(-32px)','important');}}});};lift();if(window.__colorBotLiftTimer)clearInterval(window.__colorBotLiftTimer);window.__colorBotLiftTimer=setInterval(lift,1500);}catch(e){}if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(function(){try{if(window.AndroidBdg&&document.body){var t=document.body.innerText||'';window.AndroidBdg.onPageText(t);}}catch(e){}},2500);})();", null)
                 }
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
