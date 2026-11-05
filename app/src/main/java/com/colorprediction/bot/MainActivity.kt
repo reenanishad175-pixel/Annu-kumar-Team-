@@ -38,6 +38,20 @@ class MainActivity : Activity() {
         showLoginLinkSettings()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::web.isInitialized) {
+            web.onResume()
+            WebView.resumeTimers()
+            web.postDelayed({
+                if (::web.isInitialized) {
+                    web.evaluateJavascript("window.__colorBotReadNow && window.__colorBotReadNow()", null)
+                    refreshDashboard()
+                }
+            }, 300)
+        }
+    }
+
     private fun text(s:String,size:Float=16f,color:Int=Color.WHITE,bold:Boolean=false):TextView =
         TextView(this).apply { text=s; textSize=size; setTextColor(color); gravity=Gravity.CENTER; if(bold) setTypeface(null,1); setPadding(dp(6),dp(7),dp(6),dp(7)) }
 
@@ -70,7 +84,7 @@ class MainActivity : Activity() {
             webViewClient=object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    view.evaluateJavascript("(function(){try{var id='color-bot-safe-bottom';var st=document.getElementById(id);if(!st){st=document.createElement('style');st.id=id;document.head.appendChild(st);}st.textContent='html{scroll-padding-bottom:100px!important}body{padding-bottom:100px!important;box-sizing:border-box!important}button,[role=button],.van-button,.bet-btn,.submit-btn{scroll-margin-bottom:100px!important}';var lift=function(){document.querySelectorAll('button,[role=button],.van-button,.bet-btn,.submit-btn').forEach(function(el){var r=el.getBoundingClientRect();var cs=getComputedStyle(el);if((cs.position==='fixed'||cs.position==='sticky')&&r.bottom>innerHeight-90&&r.width>90&&r.height>24&&r.height<110){if(!el.dataset.colorBotLifted){el.dataset.colorBotLifted='1';el.style.setProperty('transform','translateY(-32px)','important');}}});};lift();if(window.__colorBotLiftTimer)clearInterval(window.__colorBotLiftTimer);window.__colorBotLiftTimer=setInterval(lift,1500);}catch(e){}if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(function(){try{if(window.AndroidBdg&&document.body){var t=document.body.innerText||'';window.AndroidBdg.onPageText(t);}}catch(e){}},2500);})();", null)
+                    view.evaluateJavascript("(function(){try{var id='color-bot-safe-bottom';var st=document.getElementById(id);if(!st){st=document.createElement('style');st.id=id;document.head.appendChild(st);}st.textContent='html{scroll-padding-bottom:100px!important}body{padding-bottom:100px!important;box-sizing:border-box!important}button,[role=button],.van-button,.bet-btn,.submit-btn{scroll-margin-bottom:100px!important}';var lift=function(){document.querySelectorAll('button,[role=button],.van-button,.bet-btn,.submit-btn').forEach(function(el){var r=el.getBoundingClientRect();var cs=getComputedStyle(el);if((cs.position==='fixed'||cs.position==='sticky')&&r.bottom>innerHeight-90&&r.width>90&&r.height>24&&r.height<110){if(!el.dataset.colorBotLifted){el.dataset.colorBotLifted='1';el.style.setProperty('transform','translateY(-32px)','important');}}});};lift();if(window.__colorBotLiftTimer)clearInterval(window.__colorBotLiftTimer);window.__colorBotLiftTimer=setInterval(lift,1500);}catch(e){}window.__colorBotReadNow=function(){try{if(window.AndroidBdg&&document.body){var t=document.body.innerText||'';window.AndroidBdg.onPageText(t);}}catch(e){}};window.__colorBotReadNow();if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(window.__colorBotReadNow,2500);})();", null)
                 }
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
