@@ -47,8 +47,8 @@ object BdgAutomationController {
                 .putString("current_strategy", "")
                 .putString("current_period", snapshot.currentPeriod)
                 .putInt("current_level", 1)
-                .putString("recent_activity", "Pending result expired • not counted as WIN/LOSS • Level reset to 1")
-                .putString("bot_status", "OLD RESULT EXPIRED • Level reset to 1 • Waiting for next period")
+                .putString("recent_activity", "Previous run expired • unknown result not counted • Level 1 • SKIP 0")
+                .putString("bot_status", if (pendingExpired) "OLD RESULT EXPIRED • Level 1 • SKIP 0 • Waiting for next period" else "MISSED PERIODS RECONCILED • Level 1 • SKIP 0 • Waiting for next period")
                 .apply()
             pendingPeriod = null
         }
@@ -84,6 +84,36 @@ object BdgAutomationController {
                             "$pendingPeriod • ${prediction.side} • Level $level • ${prediction.strategy.title} • $outcomeLabel"
                         ).apply()
                 }
+            }
+        }
+
+        // When the phone was asleep during an active SKIP sequence, consume
+        // every period that has already elapsed in BDG's visible history, not
+        // just one period on resume. Do not emit predictions for missed periods.
+        val pendingStillExistsBeforeCatchUp = prefs.getString("pending_period", null) != null
+        if (!pendingStillExistsBeforeCatchUp && state.skipRemaining > 0 && state.lastProcessedPeriod != null) {
+            val elapsed = outcomes.count { comparePeriodIds(it.period, state.lastProcessedPeriod!!) > 0 }
+            val currentIsNew = comparePeriodIds(snapshot.currentPeriod, state.lastProcessedPeriod!!) > 0
+            val periodsToConsume = (elapsed + if (currentIsNew && outcomes.none { it.period == snapshot.currentPeriod }) 1 else 0)
+            if (periodsToConsume > 0) {
+                val remaining = (state.skipRemaining - periodsToConsume).coerceAtLeast(0)
+                state = state.copy(
+                    skipRemaining = remaining,
+                    skipTotal = if (remaining == 0) 0 else state.skipTotal,
+                    lastProcessedPeriod = snapshot.currentPeriod
+                )
+                saveState(prefs, state)
+                prefs.edit()
+                    .putString("current_prediction", if (remaining > 0) "SKIP" else "WAITING")
+                    .putString("current_strategy", "")
+                    .putString("current_period", snapshot.currentPeriod)
+                    .putInt("current_level", state.level)
+                    .putString("bot_status", if (remaining > 0) "SKIP CAUGHT UP • $remaining remaining" else "SKIP COMPLETE • Waiting for next period")
+                    .apply()
+                if (sessionKeyOrNullForCatchUp() != null) {
+                    TelegramReports.skip(context, sessionKeyOrNullForCatchUp()!!, snapshot.currentPeriod, remaining, state.level)
+                }
+                return prefs.getString("bot_status", "BDG DATA DETECTED").orEmpty()
             }
         }
 
@@ -173,6 +203,8 @@ object BdgAutomationController {
             else -> left.compareTo(right)
         }
     }
+
+    private fun sessionKeyOrNullForCatchUp(): String? = activeSessionKey()
 
     private fun activeSessionKey(): String? {
         val cal = Calendar.getInstance()
