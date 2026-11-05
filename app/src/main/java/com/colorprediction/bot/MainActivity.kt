@@ -138,20 +138,19 @@ class MainActivity : Activity() {
             isFocusable = true
             setOnClickListener {
                 prefs.edit()
-                    .putBoolean("predictions_stopped", true)
-                    .putBoolean("telegram_predictions_paused", true)
-                    .putString("current_prediction", "STOPPED")
-                    .putString("current_strategy", "")
-                    .putString("bot_status", "STOPPED • BDG monitoring continues")
-                    .putString("telegram_status", "STOPPED • Predictions")
-                    .putString("recent_activity", "Predictions stopped by user • BDG reading continues")
+                    .putBoolean("stop_after_win_requested", true)
+                    .putBoolean("predictions_stopped", false)
+                    .putBoolean("telegram_predictions_paused", false)
+                    .putString("bot_status", "STOP REQUESTED • continuing until WIN")
+                    .putString("telegram_status", "STOP AFTER WIN • current levels continue")
+                    .putString("recent_activity", "Stop requested • current sequence will finish on WIN")
                     .apply()
                 Toast.makeText(
                     this@MainActivity,
-                    "Predictions stopped • BDG dashboard and reading continue",
+                    "Stop requested • predictions continue until WIN; dashboard stays active",
                     Toast.LENGTH_LONG
                 ).show()
-                refreshDashboard("PREDICTIONS STOPPED • BDG monitoring continues")
+                refreshDashboard("STOP AFTER WIN • current sequence continues")
             }
         }
         val stopParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
