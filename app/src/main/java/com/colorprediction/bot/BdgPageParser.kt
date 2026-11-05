@@ -14,7 +14,7 @@ object BdgPageParser {
         """(?i)(?:current\s*)?(?:period|issue|round)\s*(?:number|no\.?|id)?\s*[:#-]?\s*(\d{12,20})"""
     )
     private val resultRow = Regex(
-        """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:RESULT\\s*[:#-]?\\s*)?(BIG|SMALL)\b"""
+        """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:[Rr][Ee][Ss][Uu][Ll][Tt] *[:#-]? *)?(BIG|SMALL)\b"""
     )
 
     fun parse(pageText: String): BdgPageSnapshot? {
