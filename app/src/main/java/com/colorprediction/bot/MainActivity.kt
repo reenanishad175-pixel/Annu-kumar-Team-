@@ -68,6 +68,7 @@ class MainActivity : Activity() {
             body.addView(text("RECENT ACTIVITY",16f,Color.WHITE,true))
             body.addView(text("No confirmed betting period yet",13f,Color.LTGRAY))
             body.addView(button("BDG LOGIN PAGE") { showBdg() })
+            body.addView(button("BDG LOGIN LINK SETTINGS") { showLoginLinkSettings() })
             body.addView(button("BOT SETTINGS") { showSettings() })
             body.addView(text("Strategy engine added • BDG auto-reading integration pending",13f,Color.YELLOW))
             body.addView(text("Live predictions remain disabled until BDG period/result detection is verified.",13f,Color.YELLOW))
@@ -92,6 +93,30 @@ class MainActivity : Activity() {
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
         root.addView(web,LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(button("BACK TO DASHBOARD") { showDashboard() })
+        setContentView(root)
+    }
+
+    private fun showLoginLinkSettings() {
+        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(16),dp(12),dp(16),dp(12)) }
+        root.addView(text("BDG LOGIN LINK SETTINGS",21f,Color.WHITE,true))
+        root.addView(text("यहाँ अपना BDG login / game URL डालें। Save करने के बाद BDG LOGIN PAGE इसी लिंक को खोलेगा।",14f,Color.LTGRAY))
+        val url=field("https://your-bdg-login-link.com").apply {
+            setSingleLine(true)
+            setText(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
+        }
+        root.addView(text("BDG LOGIN URL",14f,Color.CYAN,true))
+        root.addView(url)
+        root.addView(button("SAVE LOGIN LINK") {
+            val value=url.text.toString().trim()
+            if (value.startsWith("https://") || value.startsWith("http://")) {
+                prefs.edit().putString("bdg_url",value).apply()
+                Toast.makeText(this,"BDG login link saved",Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this,"Valid http:// or https:// link दर्ज करें",Toast.LENGTH_SHORT).show()
+            }
+        })
+        root.addView(button("OPEN BDG LOGIN PAGE") { showBdg() })
         root.addView(button("BACK TO DASHBOARD") { showDashboard() })
         setContentView(root)
     }
