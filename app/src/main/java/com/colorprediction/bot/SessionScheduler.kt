@@ -59,7 +59,10 @@ class SessionAlarmReceiver : BroadcastReceiver() {
         } else {
             "Your $hour:00 prediction session has started. Waiting for verified BDG period/result data."
         }
-        TelegramNotifier.send(token, chat, message)
+        val pendingResult = goAsync()
+        TelegramNotifier.send(token, chat, message) {
+            pendingResult.finish()
+        }
     }
 }
 
