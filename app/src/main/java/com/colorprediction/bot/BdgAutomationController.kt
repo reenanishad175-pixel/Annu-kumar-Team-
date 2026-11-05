@@ -15,27 +15,6 @@ object BdgAutomationController {
     fun process(context: Context, snapshot: BdgPageSnapshot): String {
         val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         var state = loadState(prefs)
-        // One-time repair for the old history-window bug: when the previous
-        // build counted the just-settled result as part of the pattern, it
-        // could assign Pattern B's two-SKIP rule to a one-SKIP pattern.
-        // Preserve already-consumed periods and reduce the target to one.
-        if (!prefs.getBoolean("one_skip_history_window_repaired", false)) {
-            if (state.lastStrategy == Strategy.LAST_THREE_B &&
-                state.lastOutcome == "LOSS" && state.skipTotal == 2
-            ) {
-                val alreadyConsumed = (state.skipTotal - state.skipRemaining).coerceAtLeast(0)
-                val correctedRemaining = (1 - alreadyConsumed).coerceAtLeast(0)
-                state = state.copy(skipRemaining = correctedRemaining, skipTotal = 1)
-                saveState(prefs, state)
-                if (correctedRemaining == 0) {
-                    prefs.edit().putString("current_prediction", "WAITING")
-                        .putString("current_strategy", "")
-                        .putString("bot_status", "SKIP COMPLETE • Waiting for next period")
-                        .apply()
-                }
-            }
-            prefs.edit().putBoolean("one_skip_history_window_repaired", true).apply()
-        }
         var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
 
