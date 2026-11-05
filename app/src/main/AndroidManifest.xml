@@ -1,11 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application android:theme="@style/AppTheme" android:label="Color Prediction Bot" android:icon="@drawable/ic_color_bot_logo" android:roundIcon="@drawable/ic_color_bot_logo" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
-        <receiver android:name=".SessionAlarmReceiver" android:enabled="true" android:exported="false"/>
+        <service android:name=".BdgMonitoringService" android:enabled="true" android:exported="false" android:foregroundServiceType="specialUse">\n            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-visible monitoring of the BDG game page and requested Telegram updates."/>\n        </service>\n        <receiver android:name=".SessionAlarmReceiver" android:enabled="true" android:exported="false"/>
         <receiver android:name=".BootReceiver" android:enabled="true" android:exported="false">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
         </receiver>
