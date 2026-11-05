@@ -110,13 +110,13 @@ object StrategyEngine {
                 lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "WIN"
             )
         }
-        // Keep the skip policy identical at every level, including Level 8.
-        // Strategy 4 skips one period; Strategy 3 skips two.
-        // Trend Base keeps its Level 1 / Level 2-8 rule.
+        // Skip policy confirmed by the user:
+        // Strategy 3 and 4 never skip; One by One skips 2 only after Level 1.
+        // Trend Base keeps its existing Level 1 / Level 2-8 rule.
         val skips = when (prediction.strategy) {
             Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
-            Strategy.LAST_THREE_B -> 2
+            Strategy.ONE_BY_ONE -> if (state.level >= 2) 2 else 0
+            Strategy.LAST_THREE_A, Strategy.LAST_THREE_B -> 0
         }
         if (state.level >= 8) {
             return state.copy(
