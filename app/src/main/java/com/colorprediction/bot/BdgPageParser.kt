@@ -2,7 +2,7 @@ package com.colorprediction.bot
 
 data class PeriodOutcome(val period: String, val side: Side)
 /** recentOutcomes are newest first; strategy evaluation reverses the newest three. */
-data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>)
+data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>, val gameDuration: String? = null)
 
 /**
  * Parses the visible WinGo history layout. BDG commonly renders a live period ID
@@ -13,6 +13,7 @@ object BdgPageParser {
     private val explicitCurrent = Regex(
         """(?i)(?:current\s*)?(?:period|issue|round)\s*(?:number|no\.?|id)?\s*[:#-]?\s*(\d{12,20})"""
     )
+    private val gameDurationPattern = Regex("""(?i)\b(?:win\s*go|wingo)\s*(30\s*(?:sec(?:ond)?s?|s)|1\s*(?:min(?:ute)?s?|m)|3\s*(?:min(?:ute)?s?|m)|5\s*(?:min(?:ute)?s?|m))\b""")
     private val resultRow = Regex(
         """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:[Rr][Ee][Ss][Uu][Ll][Tt] *[:#-]? *)?(BIG|SMALL)\b"""
     )
@@ -32,6 +33,14 @@ object BdgPageParser {
         val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
         val history = pairs.filterNot { it.period == current }.take(30)
         if (history.size < 3) return null
-        return BdgPageSnapshot(current, history)
+        val durationToken = gameDurationPattern.find(pageText)?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
+        val duration = when {
+            durationToken?.startsWith("30") == true -> "30 Seconds"
+            durationToken?.startsWith("1") == true -> "1 Minute"
+            durationToken?.startsWith("3") == true -> "3 Minutes"
+            durationToken?.startsWith("5") == true -> "5 Minutes"
+            else -> null
+        }
+        return BdgPageSnapshot(current, history, duration)
     }
 }
