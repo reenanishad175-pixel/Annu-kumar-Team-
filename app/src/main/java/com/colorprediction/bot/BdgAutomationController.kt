@@ -36,10 +36,13 @@ object BdgAutomationController {
                     )
                     prefs.edit().remove("pending_period").remove("pending_side")
                         .remove("pending_strategy").remove("pending_level")
-                        .remove("pending_session_key").apply()
+                        .remove("pending_session_key")
+                        .putString("current_prediction", "WAITING")
+                        .apply()
+                    val outcomeLabel = if (side == actual.side) "YOUR WIN!" else "YOUR LOSS"
                     prefs.edit().putString(
                         "recent_activity",
-                        "$pendingPeriod • ${prediction.side} • Level $level • ${if (side == actual.side) "WIN" else "LOSS"}"
+                        "$pendingPeriod • ${prediction.side} • Level $level • ${prediction.strategy.title} • $outcomeLabel"
                     ).apply()
                 }
             }
