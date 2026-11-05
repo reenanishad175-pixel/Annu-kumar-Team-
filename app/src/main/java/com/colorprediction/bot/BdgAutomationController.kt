@@ -12,6 +12,7 @@ import java.util.Locale
  * scheduled session; that limit never pauses the on-device dashboard engine.
  */
 object BdgAutomationController {
+    @Synchronized
     fun process(context: Context, snapshot: BdgPageSnapshot): String {
         val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         var state = loadState(prefs)
