@@ -28,15 +28,6 @@ object BdgPageParser {
         }
     }
 
-    private fun comparePeriodIds(a: String, b: String): Int {
-        val left = a.trimStart('0')
-        val right = b.trimStart('0')
-        return when {
-            left.length != right.length -> left.length.compareTo(right.length)
-            else -> left.compareTo(right)
-        }
-    }
-
     fun parse(pageText: String): BdgPageSnapshot? {
         if (pageText.isBlank()) return null
         val ids = periodId.findAll(pageText).map { it.groupValues[1] }.distinct().toList()
