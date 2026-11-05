@@ -160,9 +160,15 @@ class MainActivity : Activity() {
             setText(prefs.getString("referral_url","https://bdgwin98.com/#/register?invitationCode=5152785394") ?: "")
             setSingleLine(true)
         }
+        val durations = listOf("30 Seconds", "1 Minute", "3 Minutes")
+        val durationSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, durations)
+            setSelection(durations.indexOf(prefs.getString("game_duration", "30 Seconds")).coerceAtLeast(0))
+        }
         root.addView(url); root.addView(text("Telegram Bot Token",14f,Color.CYAN,true)); root.addView(token)
         root.addView(text("Telegram Chat ID",14f,Color.CYAN,true)); root.addView(chat)
         root.addView(text("BDG REFERRAL URL",14f,Color.CYAN,true)); root.addView(referral)
+        root.addView(text("GAME DURATION",14f,Color.CYAN,true)); root.addView(durationSpinner)
         root.addView(button("SAVE SETTINGS") {
             val bdgValue=url.text.toString().trim()
             val referralValue=referral.text.toString().trim()
@@ -171,7 +177,8 @@ class MainActivity : Activity() {
             } else {
                 prefs.edit().putString("bdg_url",bdgValue)
                     .putString("tg_token",token.text.toString()).putString("tg_chat",chat.text.toString().trim())
-                    .putString("referral_url",referralValue).apply()
+                    .putString("referral_url",referralValue)
+                    .putString("game_duration",durationSpinner.selectedItem.toString()).apply()
                 Toast.makeText(this,"Settings saved on this device",Toast.LENGTH_SHORT).show()
             }
         })
