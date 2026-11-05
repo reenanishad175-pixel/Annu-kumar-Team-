@@ -1,11 +1,27 @@
 package com.colorprediction.bot
 
 import android.content.Context
+import java.util.ArrayDeque
 
-/** Sends every new prediction/result while the dashboard monitor is active. No session, clock or quota. */
+/**
+ * Serial Telegram outbox. A result is acknowledged by Telegram before the
+ * following period's prediction is allowed to leave the device.
+ */
 object TelegramReports {
+    private data class Outgoing(
+        val context: Context,
+        val token: String,
+        val chatId: String,
+        val message: String,
+        val label: String
+    )
+
+    private val queueLock = Any()
+    private val queue = ArrayDeque<Outgoing>()
+    private var sending = false
+
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
-        send(
+        enqueue(
             context,
             "PREDICTION • ${prediction.side}\nPeriod: $period\nGame: $duration\nLevel: $level",
             "PREDICTION"
@@ -13,7 +29,7 @@ object TelegramReports {
     }
 
     fun result(context: Context, period: String, duration: String, level: Int, prediction: Prediction, outcome: String) {
-        send(
+        enqueue(
             context,
             "RESULT • $outcome\nPrediction: ${prediction.side}\nPeriod: $period\nGame: $duration\nLevel: $level",
             "RESULT"
@@ -21,24 +37,47 @@ object TelegramReports {
     }
 
     fun skip(context: Context, period: String, remaining: Int, level: Int) {
-        send(context, "SKIP • Period: $period\nLevel: $level\nRemaining: $remaining", "SKIP")
+        enqueue(context, "SKIP • Period: $period\nLevel: $level\nRemaining: $remaining", "SKIP")
     }
 
-    private fun send(context: Context, message: String, label: String) {
-        val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+    private fun enqueue(context: Context, message: String, label: String) {
+        val appContext = context.applicationContext
+        val prefs = appContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         val token = prefs.getString("tg_token", "").orEmpty()
         val chat = prefs.getString("tg_chat", "").orEmpty()
         if (token.isBlank() || chat.isBlank()) {
             prefs.edit().putString("telegram_status", "TOKEN/CHAT ID MISSING • Telegram settings खोलें").apply()
             return
         }
-        prefs.edit().putString("telegram_status", "SENDING • $label").apply()
-        TelegramNotifier.send(token, chat, message) { success, detail ->
+
+        val shouldStart = synchronized(queueLock) {
+            queue.addLast(Outgoing(appContext, token, chat, message, label))
+            if (sending) false else {
+                sending = true
+                true
+            }
+        }
+        if (shouldStart) sendNext()
+    }
+
+    private fun sendNext() {
+        val item = synchronized(queueLock) {
+            if (queue.isEmpty()) {
+                sending = false
+                null
+            } else queue.removeFirst()
+        } ?: return
+
+        val prefs = item.context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("telegram_status", "SENDING • ${item.label}").apply()
+        TelegramNotifier.send(item.token, item.chatId, item.message) { success, detail ->
             prefs.edit()
-                .putString("telegram_status", if (success) "SENT • $label" else "FAILED • $label • $detail")
+                .putString("telegram_status", if (success) "SENT • ${item.label}" else "FAILED • ${item.label} • $detail")
                 .putString("telegram_last_error", if (success) "" else detail)
                 .putLong("telegram_last_attempt_at", System.currentTimeMillis())
                 .apply()
+            // Continue only after Telegram has responded to the previous item.
+            sendNext()
         }
     }
 }
