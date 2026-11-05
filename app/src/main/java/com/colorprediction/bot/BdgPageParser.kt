@@ -48,8 +48,15 @@ object BdgPageParser {
             .take(30)
         if (history.size < 3) return null
         // The page text can list inactive durations too; prefer the selected tab marker.
-        val durationToken = (activeGameDurationPattern.find(pageText) ?: gameDurationPattern.find(pageText))
-            ?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
+        val activeDurationMatch = activeGameDurationPattern.find(pageText)
+        val pageDurations = gameDurationPattern.findAll(pageText)
+            .map { it.groupValues[1].replace(Regex("""\s+"""), "").lowercase() }
+            .distinct()
+            .toList()
+        // If several game tabs are present, never assume the first one is selected.
+        val durationToken = (activeDurationMatch?.groupValues?.getOrNull(1)
+            ?: pageDurations.singleOrNull())
+            ?.replace(Regex("""\s+"""), "")?.lowercase()
         val duration = when {
             durationToken?.startsWith("30") == true -> "30 Seconds"
             durationToken?.startsWith("1") == true -> "1 Minute"
