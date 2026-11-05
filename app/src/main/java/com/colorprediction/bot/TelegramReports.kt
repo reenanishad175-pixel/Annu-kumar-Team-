@@ -22,11 +22,13 @@ object TelegramReports {
     private var sending = false
 
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
+        val prefs = context.applicationContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("telegram_predictions_paused", false)) return
+        val displaySide = if (prediction.side == Side.BIG) "𝗕𝗜𝗚" else "𝗦𝗠𝗔𝗟𝗟"
         enqueue(
             context,
-            "━━━━━━━━━━━━\n🚀 LIVE PREDICTION\n\n<b>${prediction.side.name}</b>\n🆔 Period: $period\n🏷️ Label: $level\n━━━━━━━━━━━━",
-            "PREDICTION",
-            "HTML"
+            "━━━━━━━━━━━━\n🚀 LIVE PREDICTION\n\n$displaySide\n🆔 Period: $period\n🏷️ Label: $level\n━━━━━━━━━━━━",
+            "PREDICTION"
         )
     }
 
@@ -88,6 +90,11 @@ object TelegramReports {
         } ?: return
 
         val prefs = item.context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+        if (item.label == "PREDICTION" && prefs.getBoolean("telegram_predictions_paused", false)) {
+            prefs.edit().putString("telegram_status", "PAUSED • Telegram predictions").apply()
+            sendNext()
+            return
+        }
         prefs.edit().putString("telegram_status", "SENDING • ${item.label}").apply()
         TelegramNotifier.send(item.token, item.chatId, item.message, item.parseMode) { success, detail ->
             prefs.edit()
