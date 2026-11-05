@@ -23,6 +23,8 @@ class MainActivity : Activity() {
     private lateinit var predictionView: TextView
     private lateinit var periodView: TextView
     private lateinit var activityView: TextView
+    private lateinit var levelView: TextView
+    private lateinit var strategyView: TextView
     private lateinit var resultFlashView: TextView
     private lateinit var web: WebView
     private val bg = Color.rgb(8, 13, 25)
@@ -111,26 +113,25 @@ class MainActivity : Activity() {
         header.addView(foldButton,LinearLayout.LayoutParams(-2,dp(44)))
         dashboard.addView(header)
 
-        val details=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL
-            gravity=Gravity.CENTER
-        }
-        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
-        predictionView=text("",22f,Color.RED,true).apply { setPadding(dp(8),dp(13),dp(8),dp(13)) }
-        periodView=text("",14f,Color.WHITE,true)
-        resultFlashView=text("",19f,Color.WHITE,true).apply {
-            setPadding(dp(8),dp(8),dp(8),dp(8))
-            visibility=View.GONE
-        }
-        activityView=text("",13f,Color.LTGRAY)
-        details.addView(status)
-        details.addView(predictionView)
-        details.addView(periodView)
-        details.addView(resultFlashView)
-        details.addView(activityView)
+        val details=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(4),dp(5),dp(4),dp(2)) }
+        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",11f,Color.rgb(255,70,70),true)
+        val hero=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(4),dp(2),dp(4),dp(2)) }
+        val predictionColumn=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_VERTICAL }
+        predictionView=text("WAITING",30f,Color.rgb(34,211,119),true).apply { gravity=Gravity.START; setPadding(dp(5),dp(1),dp(5),dp(1)) }
+        predictionColumn.addView(text("PREDICTION",10f,Color.rgb(255,70,70),true).apply { gravity=Gravity.START })
+        predictionColumn.addView(predictionView)
+        hero.addView(predictionColumn,LinearLayout.LayoutParams(0,-2,1.35f))
+        val levelStrategy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.END or Gravity.CENTER_VERTICAL }
+        levelView=text("",12f,Color.rgb(255,70,70),true).apply { gravity=Gravity.END }
+        strategyView=text("",12f,Color.rgb(255,70,70),true).apply { gravity=Gravity.END }
+        levelStrategy.addView(levelView); levelStrategy.addView(strategyView)
+        hero.addView(levelStrategy,LinearLayout.LayoutParams(0,-2,1f))
+        periodView=text("",11f,Color.rgb(255,70,70),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(4),dp(2),dp(2)) }
+        resultFlashView=text("",14f,Color.WHITE,true).apply { setPadding(dp(8),dp(6),dp(8),dp(6)); visibility=View.GONE }
+        activityView=text("",10f,Color.rgb(255,70,70),false).apply { gravity=Gravity.CENTER; setPadding(dp(2),dp(2),dp(2),dp(2)) }
+        details.addView(status); details.addView(hero); details.addView(periodView); details.addView(resultFlashView); details.addView(activityView)
         dashboard.addView(details)
         refreshDashboard()
-
         foldButton.setOnClickListener {
             val folded = details.visibility == View.VISIBLE
             details.visibility = if (folded) View.GONE else View.VISIBLE
@@ -160,15 +161,13 @@ class MainActivity : Activity() {
         if (::status.isInitialized) status.text = statusMessage ?: (prefs.getString("bdg_read_status","Waiting for BDG data") ?: "Waiting for BDG data")
         if (::predictionView.isInitialized) {
             val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
-            val strategy = prefs.getString("current_strategy", "").orEmpty()
-            val strategyLabel = if (strategy.isBlank()) "" else "  •  $strategy"
-            predictionView.text =
-                "PREDICTION: $prediction  •  LEVEL ${prefs.getInt("current_level",1)}/8$strategyLabel"
+            predictionView.text = prediction
+            predictionView.setTextColor(if (prediction == "BIG" || prediction == "SMALL") Color.rgb(34,211,119) else Color.rgb(255,70,70))
+            levelView.text = "LEVEL  " + prefs.getInt("current_level",1) + "/8"
+            strategyView.text = prefs.getString("current_strategy", "").orEmpty()
         }
-        if (::periodView.isInitialized) periodView.text =
-            "GAME: ${prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—"}  •  PERIOD: ${prefs.getString("current_period","—") ?: "—"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}"
-        if (::activityView.isInitialized) activityView.text =
-            "ACTIVITY: ${prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result"}"
+        if (::periodView.isInitialized) periodView.text = "GAME: " + (prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—") + "   •   PERIOD: " + (prefs.getString("current_period","—") ?: "—") + "   •   SKIP: " + prefs.getInt("engine_skip",0) + "/" + prefs.getInt("engine_skip_total",0)
+        if (::activityView.isInitialized) activityView.text = "ACTIVITY: " + (prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result")
         val flashId=prefs.getLong("result_flash_id",0L)
         if (::resultFlashView.isInitialized && flashId>lastFlashId) {
             lastFlashId=flashId
