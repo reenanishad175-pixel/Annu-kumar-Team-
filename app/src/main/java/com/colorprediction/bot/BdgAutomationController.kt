@@ -26,12 +26,7 @@ object BdgAutomationController {
         val pendingExpired = pendingPeriod != null && oldestVisiblePeriod != null &&
             comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0
         if (pendingExpired) {
-            state = state.copy(
-                level = 1,
-                skipRemaining = 0,
-                skipTotal = 0,
-                lastProcessedPeriod = snapshot.currentPeriod
-            )
+            state = StrategyEngine.recoverExpiredPending(state, snapshot.currentPeriod)
             saveState(prefs, state)
             prefs.edit()
                 .remove("pending_period")
