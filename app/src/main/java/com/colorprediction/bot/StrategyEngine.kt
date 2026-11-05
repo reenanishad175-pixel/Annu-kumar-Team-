@@ -8,8 +8,8 @@ enum class Side { BIG, SMALL }
 enum class Strategy(val title: String) {
     TREND_BASE("Strategy 1 • Trend Base"),
     ONE_BY_ONE("Strategy 2 • One by One"),
-    LAST_THREE_A("Strategy 3 • Last 3 Period"),
-    LAST_THREE_B("Strategy 4 • Last 3 Period")
+    LAST_THREE_A("Strategy 3 • Last 3 Pattern A"),
+    LAST_THREE_B("Strategy 4 • Last 3 Pattern B")
 }
 
 data class Prediction(val side: Side, val strategy: Strategy)
@@ -84,29 +84,24 @@ object StrategyEngine {
                 lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "WIN"
             )
         }
+        // Keep the skip policy identical at every level, including Level 8.
+        // Strategy 3 always skips one period; Strategy 4 always skips two.
+        // Trend Base keeps its separate Level 1 / Level 2-8 rule.
+        val skips = when (prediction.strategy) {
+            Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
+            Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
+            Strategy.LAST_THREE_B -> 2
+        }
         if (state.level >= 8) {
             return state.copy(
-                skipRemaining = when (prediction.strategy) {
-                    Strategy.TREND_BASE -> 5
-                    Strategy.LAST_THREE_B -> 2
-                    else -> 0
-                },
-                skipTotal = when (prediction.strategy) {
-                    Strategy.TREND_BASE -> 5
-                    Strategy.LAST_THREE_B -> 2
-                    else -> 0
-                },
+                skipRemaining = skips,
+                skipTotal = skips,
                 pausedUntilMillis = now + 60L * 60L * 1000L,
                 lastBetPeriod = period, lastPrediction = prediction.side,
                 lastStrategy = prediction.strategy, lastOutcome = "LOSS"
             )
         }
         val nextLevel = state.level + 1
-        val skips = when (prediction.strategy) {
-            Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
-            Strategy.LAST_THREE_B -> if (state.level == 1) 0 else 2
-        }
         return state.copy(
             level = nextLevel, skipRemaining = skips, skipTotal = skips, lastBetPeriod = period,
             lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "LOSS"
