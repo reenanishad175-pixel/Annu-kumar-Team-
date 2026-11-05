@@ -5,35 +5,33 @@ data class PeriodOutcome(val period: String, val side: Side)
 data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>)
 
 /**
- * Conservative text parser. It only accepts explicit period/result pairs and never
- * guesses from unrelated BIG/SMALL words or random page content.
+ * Parses the visible WinGo history layout. BDG commonly renders a live period ID
+ * separately, followed by history rows containing period ID, digit, and Big/Small.
  */
 object BdgPageParser {
-    private val currentPeriodRegex = Regex(
-        "(?i)(?:current\\s*)?(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*(\\d{6,})"
+    private val periodId = Regex("""\\b(\\d{12,20})\\b""")
+    private val explicitCurrent = Regex(
+        """(?i)(?:current\\s*)?(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*(\\d{12,20})"""
     )
-    private val pairRegex = Regex(
-        "(?is)(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*(\\d{6,})[\\s\\S]{0,100}?\\b(BIG|SMALL)\\b"
+    private val resultRow = Regex(
+        """(?i)\\b(\\d{12,20})\\b[\\s|,;:#-]*(?:[0-9]\\s+)?(BIG|SMALL)\\b"""
     )
 
     fun parse(pageText: String): BdgPageSnapshot? {
-        val current = currentPeriodRegex.find(pageText)?.groupValues?.getOrNull(1) ?: return null
-        val historyText = pageText.replace(
-            Regex("(?i)current\\s*(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*\\d{6,}"),
-            ""
-        )
-        val pairs = pairRegex.findAll(historyText)
-            .map { match ->
-                PeriodOutcome(
-                    match.groupValues[1],
-                    if (match.groupValues[2].equals("BIG", true)) Side.BIG else Side.SMALL
-                )
-            }
-            .distinctBy { it.period }
-            .filterNot { it.period == current }
-            .take(10)
-            .toList()
+        if (pageText.isBlank()) return null
+        val ids = periodId.findAll(pageText).map { it.groupValues[1] }.distinct().toList()
+        if (ids.size < 4) return null
+        val pairs = resultRow.findAll(pageText).map { match ->
+            PeriodOutcome(match.groupValues[1],
+                if (match.groupValues[2].equals("BIG", true)) Side.BIG else Side.SMALL)
+        }.distinctBy { it.period }.toList()
         if (pairs.size < 3) return null
-        return BdgPageSnapshot(current, pairs)
+        val explicit = explicitCurrent.find(pageText)?.groupValues?.getOrNull(1)
+        val pairedIds = pairs.map { it.period }.toSet()
+        val standalone = ids.firstOrNull { it !in pairedIds }
+        val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
+        val history = pairs.filterNot { it.period == current }.take(10)
+        if (history.size < 3) return null
+        return BdgPageSnapshot(current, history)
     }
 }
