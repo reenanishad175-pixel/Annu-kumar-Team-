@@ -18,6 +18,33 @@ object BdgAutomationController {
         var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
 
+        // Switching WinGo duration (30s / 1m / 3m / 5m) invalidates every
+        // pending bet and stale Level/SKIP value from the previously selected game.
+        // Establish the new game's current period as a baseline; never score an
+        // old-duration result against the newly selected duration.
+        val detectedDuration = snapshot.gameDuration
+        val activeDuration = prefs.getString("active_game_duration", null)
+        if (detectedDuration != null && detectedDuration != activeDuration) {
+            state = StrategyEngine.resetForGameDuration(snapshot.currentPeriod)
+            saveState(prefs, state)
+            prefs.edit()
+                .putString("active_game_duration", detectedDuration)
+                .putString("game_duration", detectedDuration)
+                .remove("pending_period")
+                .remove("pending_side")
+                .remove("pending_strategy")
+                .remove("pending_level")
+                .remove("pending_session_key")
+                .putString("current_prediction", "WAITING")
+                .putString("current_strategy", "")
+                .putString("current_period", snapshot.currentPeriod)
+                .putInt("current_level", 1)
+                .putString("recent_activity", "Game changed to $detectedDuration • old bet cleared • Level 1 • SKIP 0")
+                .putString("bot_status", "$detectedDuration SELECTED • HISTORY REFRESHED • Level 1 • SKIP 0 • Waiting for next period")
+                .apply()
+            return prefs.getString("bot_status", "GAME DURATION UPDATED").orEmpty()
+        }
+
         // If the phone was asleep long enough that the pending period has
         // fallen outside BDG's visible history, its outcome is unknowable.
         // Never invent WIN/LOSS: discard that stale pending bet and recover
