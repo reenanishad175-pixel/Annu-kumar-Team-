@@ -34,7 +34,9 @@ object BdgPageParser {
         val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
         val history = pairs.filterNot { it.period == current }.take(30)
         if (history.size < 3) return null
-        // The page text can list inactive durations too; prefer the selected tab marker.\n        val durationToken = (activeGameDurationPattern.find(pageText) ?: gameDurationPattern.find(pageText))\n            ?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
+        // The page text can list inactive durations too; prefer the selected tab marker.
+        val durationToken = (activeGameDurationPattern.find(pageText) ?: gameDurationPattern.find(pageText))
+            ?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
         val duration = when {
             durationToken?.startsWith("30") == true -> "30 Seconds"
             durationToken?.startsWith("1") == true -> "1 Minute"
