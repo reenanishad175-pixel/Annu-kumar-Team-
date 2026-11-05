@@ -146,7 +146,8 @@ class MainActivity : Activity() {
         })
         root.addView(button("OPEN BDG LOGIN PAGE") { showBdg() })
         root.addView(button("BACK TO DASHBOARD") { showDashboard() })
-        setContentView(root)
+        val scroll = ScrollView(this).apply { addView(root) }
+        setContentView(scroll)
     }
 
     private fun showSettings() {
@@ -196,6 +197,7 @@ class MainActivity : Activity() {
             }
         })
         root.addView(button("BACK TO DASHBOARD") { showDashboard() })
-        setContentView(root)
+        val scroll = ScrollView(this).apply { addView(root) }
+        setContentView(scroll)
     }
 }
