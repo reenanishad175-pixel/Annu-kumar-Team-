@@ -18,17 +18,35 @@ object BdgAutomationController {
         var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
 
-        // Keep a pending bet until its exact result is found in the visible
-        // history. Clearing it without settling used to leave the loss level
-        // frozen after the phone screen stayed off and BDG history advanced.
+        // If the phone was asleep long enough that the pending period has
+        // fallen outside BDG's visible history, its outcome is unknowable.
+        // Never invent WIN/LOSS: discard that stale pending bet and recover
+        // the engine at the latest period so it cannot remain stuck forever.
         val oldestVisiblePeriod = outcomes.lastOrNull()?.period
         val pendingExpired = pendingPeriod != null && oldestVisiblePeriod != null &&
             comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0
         if (pendingExpired) {
+            state = state.copy(
+                level = 1,
+                skipRemaining = 0,
+                skipTotal = 0,
+                lastProcessedPeriod = snapshot.currentPeriod
+            )
+            saveState(prefs, state)
             prefs.edit()
-                .putString("current_prediction", "WAITING FOR RESULT")
-                .putString("bot_status", "RESULT NOT IN VISIBLE HISTORY • Level held until verified")
+                .remove("pending_period")
+                .remove("pending_side")
+                .remove("pending_strategy")
+                .remove("pending_level")
+                .remove("pending_session_key")
+                .putString("current_prediction", "WAITING")
+                .putString("current_strategy", "")
+                .putString("current_period", snapshot.currentPeriod)
+                .putInt("current_level", 1)
+                .putString("recent_activity", "Pending result expired • not counted as WIN/LOSS • Level reset to 1")
+                .putString("bot_status", "OLD RESULT EXPIRED • Level reset to 1 • Waiting for next period")
                 .apply()
+            pendingPeriod = null
         }
 
         if (pendingPeriod != null) {
