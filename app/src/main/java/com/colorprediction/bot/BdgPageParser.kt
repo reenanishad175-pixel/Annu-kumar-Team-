@@ -1,6 +1,7 @@
 package com.colorprediction.bot
 
 data class PeriodOutcome(val period: String, val side: Side)
+/** recentOutcomes are newest first; strategy evaluation reverses the newest three. */
 data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>)
 
 /**
@@ -25,6 +26,7 @@ object BdgPageParser {
                 )
             }
             .distinctBy { it.period }
+            .filterNot { it.period == current }
             .take(10)
             .toList()
         if (pairs.size < 3) return null
