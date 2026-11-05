@@ -17,6 +17,31 @@ class StrategyEngineTest {
         assertEquals(Prediction(Side.BIG, Strategy.LAST_THREE_B), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.BIG)))
     }
 
+    @Test fun dashboardPatternNumbersMatchTheirSkipRules() {
+        val patternA = StrategyEngine.predict(s(Side.SMALL, Side.BIG, Side.BIG))!!
+        val patternB = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL))!!
+        assertEquals("Strategy 4 • Last 3 Pattern A", patternA.strategy.title)
+        assertEquals("Strategy 3 • Last 3 Pattern B", patternB.strategy.title)
+        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "A", patternA, Side.BIG, 1000L).skipRemaining)
+        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
+    }
+
+    @Test fun expiredPendingRecoveryResetsLevelAndSkipsAtLatestPeriod() {
+        val original = EngineState(
+            level = 6,
+            skipRemaining = 2,
+            skipTotal = 5,
+            pausedUntilMillis = 123456L,
+            lastProcessedPeriod = "OLD"
+        )
+        val recovered = StrategyEngine.recoverExpiredPending(original, "LATEST")
+        assertEquals(1, recovered.level)
+        assertEquals(0, recovered.skipRemaining)
+        assertEquals(0, recovered.skipTotal)
+        assertEquals("LATEST", recovered.lastProcessedPeriod)
+        assertEquals(123456L, recovered.pausedUntilMillis)
+    }
+
     @Test fun firstHistoryReadOnlyEstablishesBaselineAndSkips() {
         val result = StrategyEngine.onNewPeriod(
             EngineState(),
