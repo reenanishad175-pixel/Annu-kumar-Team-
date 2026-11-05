@@ -156,6 +156,35 @@ class MainActivity : Activity() {
         }
         telegramBar.addView(stopButton, stopParams)
 
+        val startButton = TextView(this).apply {
+            text = "▶"
+            textSize = 19f
+            setTextColor(Color.rgb(20, 130, 70))
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.rgb(220, 252, 231))
+            contentDescription = "Start predictions"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                prefs.edit()
+                    .putBoolean("predictions_stopped", false)
+                    .putBoolean("stop_after_win_requested", false)
+                    .putString("current_prediction", "WAITING")
+                    .putString("bot_status", "START REQUESTED • waiting for next BDG period")
+                    .putString("recent_activity", "Prediction monitoring restarted")
+                    .apply()
+                val monitorIntent = android.content.Intent(this@MainActivity, BdgMonitoringService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(monitorIntent) else startService(monitorIntent)
+                refreshDashboard("START REQUESTED • waiting for next BDG period")
+                Toast.makeText(this@MainActivity, "Predictions started • waiting for next period", Toast.LENGTH_LONG).show()
+            }
+        }
+        val startParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            leftMargin = dp(6)
+            rightMargin = dp(8)
+        }
+        telegramBar.addView(startButton, startParams)
+
         val referButton = TextView(this).apply {
             text = "↗"
             textSize = 23f
@@ -199,11 +228,6 @@ class MainActivity : Activity() {
             isFocusable = true
         }
         header.addView(foldButton, LinearLayout.LayoutParams(dp(40), dp(40)))
-        val exitButton=button("✕ EXIT") {
-            stopService(android.content.Intent(this, BdgMonitoringService::class.java))
-            finish()
-        }
-        header.addView(exitButton,LinearLayout.LayoutParams(-2,dp(44)))
         dashboard.addView(header)
 
         val details=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(4),dp(5),dp(4),dp(2)) }
