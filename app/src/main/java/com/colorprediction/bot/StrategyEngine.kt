@@ -33,9 +33,9 @@ data class EngineUpdate(
 )
 
 object StrategyEngine {
-    /** BDG history is newest-first. The three latest entries form the current pattern; reverse them only to match the engine's oldest-to-newest convention. */
+    /** BDG history is newest-first. Match the user's displayed top-to-bottom pattern order directly. */
     fun patternFromRecentResults(newestFirst: List<Side>): List<Side> =
-        newestFirst.take(3).asReversed()
+        newestFirst.take(3)
 
     /** Start clean on a newly selected WinGo duration; old bets/skips never carry across games. */
     fun resetForGameDuration(latestPeriod: String): EngineState = EngineState(
