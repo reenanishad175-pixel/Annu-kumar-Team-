@@ -13,7 +13,7 @@ object BdgPageParser {
     private val explicitCurrent = Regex(
         """(?i)(?:current\s*)?(?:period|issue|round)\s*(?:number|no\.?|id)?\s*[:#-]?\s*(\d{12,20})"""
     )
-    private val activeGameDurationPattern = Regex("""(?i)ACTIVE_GAME_MODE:\\s*(?:win\\s*go\\s*)?(30\\s*(?:sec(?:ond)?s?|s)|1\\s*(?:min(?:ute)?s?|m)|3\\s*(?:min(?:ute)?s?|m)|5\\s*(?:min(?:ute)?s?|m))\\b""")
+    private val activeGameDurationPattern = Regex("""(?i)ACTIVE_GAME_MODE:\s*(?:win\s*go\s*)?(30\s*(?:sec(?:ond)?s?|s)|1\s*(?:min(?:ute)?s?|m)|3\s*(?:min(?:ute)?s?|m)|5\s*(?:min(?:ute)?s?|m))\b""")
     private val gameDurationPattern = Regex("""(?i)\b(?:win\s*go|wingo)\s*(30\s*(?:sec(?:ond)?s?|s)|1\s*(?:min(?:ute)?s?|m)|3\s*(?:min(?:ute)?s?|m)|5\s*(?:min(?:ute)?s?|m))\b""")
     private val resultRow = Regex(
         """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:[Rr][Ee][Ss][Uu][Ll][Tt] *[:#-]? *)?(BIG|SMALL)\b"""
@@ -34,7 +34,7 @@ object BdgPageParser {
         val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
         val history = pairs.filterNot { it.period == current }.take(30)
         if (history.size < 3) return null
-        val durationToken = gameDurationPattern.find(pageText)?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
+        // The page text can list inactive durations too; prefer the selected tab marker.\n        val durationToken = (activeGameDurationPattern.find(pageText) ?: gameDurationPattern.find(pageText))\n            ?.groupValues?.getOrNull(1)?.replace(Regex("""\s+"""), "")?.lowercase()
         val duration = when {
             durationToken?.startsWith("30") == true -> "30 Seconds"
             durationToken?.startsWith("1") == true -> "1 Minute"
