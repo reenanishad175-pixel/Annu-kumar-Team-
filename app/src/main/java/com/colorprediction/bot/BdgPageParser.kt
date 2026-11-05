@@ -9,12 +9,12 @@ data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<P
  * separately, followed by history rows containing period ID, digit, and Big/Small.
  */
 object BdgPageParser {
-    private val periodId = Regex("""\\b(\\d{12,20})\\b""")
+    private val periodId = Regex("""\b(\d{12,20})\b""")
     private val explicitCurrent = Regex(
-        """(?i)(?:current\\s*)?(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*(\\d{12,20})"""
+        """(?i)(?:current\s*)?(?:period|issue|round)\s*(?:number|no\.?|id)?\s*[:#-]?\s*(\d{12,20})"""
     )
     private val resultRow = Regex(
-        """(?i)\\b(\\d{12,20})\\b[\\s|,;:#-]*(?:[0-9]\\s+)?(BIG|SMALL)\\b"""
+        """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(BIG|SMALL)\b"""
     )
 
     fun parse(pageText: String): BdgPageSnapshot? {
