@@ -137,13 +137,21 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                prefs.edit().putBoolean("telegram_predictions_paused", true).putString("telegram_status", "PAUSED • Telegram predictions").apply()
+                prefs.edit()
+                    .putBoolean("predictions_stopped", true)
+                    .putBoolean("telegram_predictions_paused", true)
+                    .putString("current_prediction", "STOPPED")
+                    .putString("current_strategy", "")
+                    .putString("bot_status", "STOPPED • BDG monitoring continues")
+                    .putString("telegram_status", "STOPPED • Predictions")
+                    .putString("recent_activity", "Predictions stopped by user • BDG reading continues")
+                    .apply()
                 Toast.makeText(
                     this@MainActivity,
-                    "Telegram predictions paused • BDG dashboard monitoring continues",
+                    "Predictions stopped • BDG dashboard and reading continue",
                     Toast.LENGTH_LONG
                 ).show()
-                refreshDashboard()
+                refreshDashboard("PREDICTIONS STOPPED • BDG monitoring continues")
             }
         }
         val stopParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
