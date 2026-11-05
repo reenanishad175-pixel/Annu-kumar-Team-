@@ -224,7 +224,7 @@ class MainActivity : Activity() {
             val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
             predictionView.text = prediction
             predictionView.setTextColor(if (prediction == "BIG" || prediction == "SMALL") Color.rgb(34,211,119) else Color.rgb(255,70,70))
-            levelView.text = "LEVEL  " + prefs.getInt("current_level",1)
+            levelView.text = "LABEL  " + prefs.getInt("current_level",1)
             strategyView.text = prefs.getString("current_strategy", "").orEmpty()
         }
         if (::periodView.isInitialized) periodView.text = "GAME: " + (prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—") + "   •   PERIOD: " + (prefs.getString("current_period","—") ?: "—") + "   •   SKIP: " + prefs.getInt("engine_skip",0) + "/" + prefs.getInt("engine_skip_total",0)
