@@ -15,8 +15,25 @@ object BdgAutomationController {
     fun process(context: Context, snapshot: BdgPageSnapshot): String {
         val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         var state = loadState(prefs)
-        val pendingPeriod = prefs.getString("pending_period", null)
+        var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
+
+        // If the app was closed long enough that the pending period has fallen
+        // behind the oldest result still visible in BDG history, do not leave
+        // the engine blocked forever. Clear only that stale pending record;
+        // never invent a WIN/LOSS for a result we can no longer verify.
+        val oldestVisiblePeriod = outcomes.lastOrNull()?.period
+        if (pendingPeriod != null && oldestVisiblePeriod != null &&
+            comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0) {
+            prefs.edit()
+                .remove("pending_period").remove("pending_side")
+                .remove("pending_strategy").remove("pending_level")
+                .remove("pending_session_key")
+                .putString("current_prediction", "WAITING")
+                .putString("bot_status", "OLD PERIOD EXPIRED • Resuming live BDG reading")
+                .apply()
+            pendingPeriod = null
+        }
 
         if (pendingPeriod != null) {
             val actual = outcomes.firstOrNull { it.period == pendingPeriod }
@@ -127,6 +144,16 @@ object BdgAutomationController {
             .putString("engine_last_outcome", state.lastOutcome)
             .putInt("current_level", state.level)
             .apply()
+    }
+
+    /** Compare numeric BDG period IDs without overflowing a Long. */
+    private fun comparePeriodIds(a: String, b: String): Int {
+        val left = a.trimStart('0')
+        val right = b.trimStart('0')
+        return when {
+            left.length != right.length -> left.length.compareTo(right.length)
+            else -> left.compareTo(right)
+        }
     }
 
     private fun activeSessionKey(): String? {
