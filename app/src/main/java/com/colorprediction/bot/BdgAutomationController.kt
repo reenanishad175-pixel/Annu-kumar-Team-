@@ -40,10 +40,13 @@ object BdgAutomationController {
                         .putString("current_prediction", "WAITING")
                         .apply()
                     val outcomeLabel = if (side == actual.side) "YOUR WIN!" else "YOUR LOSS"
-                    prefs.edit().putString(
-                        "recent_activity",
-                        "$pendingPeriod • ${prediction.side} • Level $level • ${prediction.strategy.title} • $outcomeLabel"
-                    ).apply()
+                    prefs.edit()
+                        .putString("result_flash", if (side == actual.side) "WIN" else "LOSS")
+                        .putLong("result_flash_id", System.currentTimeMillis())
+                        .putString(
+                            "recent_activity",
+                            "$pendingPeriod • ${prediction.side} • Level $level • ${prediction.strategy.title} • $outcomeLabel"
+                        ).apply()
                 }
             }
         }
