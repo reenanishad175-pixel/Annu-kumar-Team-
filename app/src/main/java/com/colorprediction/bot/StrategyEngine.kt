@@ -8,8 +8,8 @@ enum class Side { BIG, SMALL }
 enum class Strategy(val title: String) {
     TREND_BASE("Strategy 1 • Trend Base"),
     ONE_BY_ONE("Strategy 2 • One by One"),
-    LAST_THREE_A("Strategy 4 • Last 3 Pattern A"),
-    LAST_THREE_B("Strategy 3 • Last 3 Pattern B")
+    LAST_THREE_A("Strategy 4"),
+    LAST_THREE_B("Strategy 3")
 }
 
 data class Prediction(val side: Side, val strategy: Strategy)
@@ -111,8 +111,8 @@ object StrategyEngine {
             )
         }
         // Keep the skip policy identical at every level, including Level 8.
-        // Dashboard Strategy 4 (Pattern A) skips one period; Dashboard Strategy 3
-        // (Pattern B) skips two. Trend Base keeps its Level 1 / Level 2-8 rule.
+        // Strategy 4 skips one period; Strategy 3 skips two.
+        // Trend Base keeps its Level 1 / Level 2-8 rule.
         val skips = when (prediction.strategy) {
             Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
             Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A -> 1
