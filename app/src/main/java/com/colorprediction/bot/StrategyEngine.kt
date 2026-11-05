@@ -33,6 +33,11 @@ data class EngineUpdate(
 )
 
 object StrategyEngine {
+    /** Start clean on a newly selected WinGo duration; old bets/skips never carry across games. */
+    fun resetForGameDuration(latestPeriod: String): EngineState = EngineState(
+        level = 1, skipRemaining = 0, skipTotal = 0, lastProcessedPeriod = latestPeriod
+    )
+
     /** Recover safely when a pending period has disappeared from BDG history. */
     fun recoverExpiredPending(state: EngineState, latestPeriod: String): EngineState =
         state.copy(
