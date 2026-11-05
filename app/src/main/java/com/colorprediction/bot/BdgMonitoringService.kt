@@ -40,7 +40,7 @@ class BdgMonitoringService : Service() {
                     handleReaderResult(raw)
                 }
             }
-            main.postDelayed(this, 3000L)
+            main.postDelayed(this, 2000L)
         }
     }
 
