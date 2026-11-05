@@ -76,8 +76,15 @@ object TelegramReports {
                 .putString("telegram_last_error", if (success) "" else detail)
                 .putLong("telegram_last_attempt_at", System.currentTimeMillis())
                 .apply()
-            // Continue only after Telegram has responded to the previous item.
-            sendNext()
+            // Never allow a later prediction to overtake a failed result.
+            if (success) {
+                sendNext()
+            } else {
+                synchronized(queueLock) {
+                    queue.addFirst(item)
+                    sending = false
+                }
+            }
         }
     }
 }
