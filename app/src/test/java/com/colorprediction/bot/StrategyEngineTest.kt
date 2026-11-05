@@ -70,7 +70,7 @@ class StrategyEngineTest {
     }
 
     @Test fun skipCountsDownOnlyOnNewPeriods() {
-        var state = EngineState(skipRemaining = 3)
+        var state = EngineState(skipRemaining = 3, lastProcessedPeriod = "P0")
         state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state
         assertEquals(2, state.skipRemaining)
         state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state
