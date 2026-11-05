@@ -49,28 +49,28 @@ class StrategyEngineTest {
         )!!
         assertEquals(Strategy.LAST_THREE_B, strategy3a.strategy)
         assertEquals("Strategy 3", strategy3a.strategy.title)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "P1", strategy3a, Side.SMALL, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P1", strategy3a, Side.SMALL, 1000L).skipRemaining)
 
         val strategy3b = StrategyEngine.predict(
             StrategyEngine.patternFromRecentResults(s(Side.BIG, Side.BIG, Side.SMALL, Side.SMALL, Side.BIG))
         )!!
         assertEquals(Strategy.LAST_THREE_B, strategy3b.strategy)
         assertEquals("Strategy 3", strategy3b.strategy.title)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "P2", strategy3b, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P2", strategy3b, Side.BIG, 1000L).skipRemaining)
 
         val strategy4a = StrategyEngine.predict(
             StrategyEngine.patternFromRecentResults(s(Side.SMALL, Side.BIG, Side.BIG, Side.BIG, Side.SMALL))
         )!!
         assertEquals(Strategy.LAST_THREE_A, strategy4a.strategy)
         assertEquals("Strategy 4", strategy4a.strategy.title)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "P3", strategy4a, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P3", strategy4a, Side.BIG, 1000L).skipRemaining)
 
         val strategy4b = StrategyEngine.predict(
             StrategyEngine.patternFromRecentResults(s(Side.BIG, Side.SMALL, Side.SMALL, Side.SMALL, Side.BIG))
         )!!
         assertEquals(Strategy.LAST_THREE_A, strategy4b.strategy)
         assertEquals("Strategy 4", strategy4b.strategy.title)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "P4", strategy4b, Side.SMALL, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P4", strategy4b, Side.SMALL, 1000L).skipRemaining)
     }
 
     @Test fun dashboardPatternNumbersMatchTheirSkipRules() {
@@ -78,8 +78,8 @@ class StrategyEngineTest {
         val patternB = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL))!!
         assertEquals("Strategy 4", patternA.strategy.title)
         assertEquals("Strategy 3", patternB.strategy.title)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "A", patternA, Side.BIG, 1000L).skipRemaining)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "A", patternA, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
     }
 
     @Test fun changingGameDurationStartsFreshAtLatestPeriod() {
@@ -143,12 +143,13 @@ class StrategyEngineTest {
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipRemaining)
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipTotal)
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 8), "1", p1, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "2", p2, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(level = 2), "5", p4, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(level = 8), "6", p3, Side.BIG, 1000L).skipRemaining)
-        assertEquals(2, StrategyEngine.onOutcome(EngineState(level = 8), "7", p4, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 1), "2", p2, Side.BIG, 1000L).skipRemaining)
+        assertEquals(2, StrategyEngine.onOutcome(EngineState(level = 2), "2b", p2, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 2), "5", p4, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 8), "6", p3, Side.BIG, 1000L).skipRemaining)
+        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 8), "7", p4, Side.BIG, 1000L).skipRemaining)
     }
 
     @Test fun levelEightLossPausesOneHour() {
