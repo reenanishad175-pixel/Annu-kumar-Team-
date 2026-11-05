@@ -30,7 +30,7 @@ object BdgPageParser {
         val pairedIds = pairs.map { it.period }.toSet()
         val standalone = ids.firstOrNull { it !in pairedIds }
         val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
-        val history = pairs.filterNot { it.period == current }.take(10)
+        val history = pairs.filterNot { it.period == current }.take(30)
         if (history.size < 3) return null
         return BdgPageSnapshot(current, history)
     }
