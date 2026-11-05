@@ -137,17 +137,13 @@ class MainActivity : Activity() {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                if (prefs.getBoolean("predictions_stopped", false)) {
-                    Toast.makeText(this@MainActivity, "Predictions are already stopped after WIN", Toast.LENGTH_SHORT).show()
-                } else {
-                    val requested = prefs.getBoolean("stop_after_win_requested", false)
-                    prefs.edit().putBoolean("stop_after_win_requested", !requested).apply()
-                    Toast.makeText(
-                        this@MainActivity,
-                        if (requested) "STOP request cancelled" else "STOP set • predictions will stop after the next WIN",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                prefs.edit().putBoolean("telegram_predictions_paused", true).apply()
+                Toast.makeText(
+                    this@MainActivity,
+                    "Telegram predictions paused • BDG dashboard monitoring continues",
+                    Toast.LENGTH_LONG
+                ).show()
+                refreshDashboard()
             }
         }
         val stopParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
@@ -169,6 +165,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putBoolean("predictions_stopped", false)
                     .putBoolean("stop_after_win_requested", false)
+                    .putBoolean("telegram_predictions_paused", false)
                     .putString("current_prediction", "WAITING")
                     .putString("bot_status", "START REQUESTED • waiting for next BDG period")
                     .putString("recent_activity", "Prediction monitoring restarted")
