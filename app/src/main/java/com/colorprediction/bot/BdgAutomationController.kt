@@ -12,6 +12,13 @@ object BdgAutomationController {
         val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         var state = loadState(prefs)
         var pendingPeriod = prefs.getString("pending_period", null)
+        if (prefs.getBoolean("predictions_stopped", false)) {
+            prefs.edit()
+                .putString("current_prediction", "STOPPED")
+                .putString("bot_status", "STOPPED AFTER WIN • no further predictions")
+                .apply()
+            return "STOPPED AFTER WIN • no further predictions"
+        }
         val outcomes = snapshot.recentOutcomes
 
         val detectedDuration = snapshot.gameDuration
@@ -77,8 +84,20 @@ object BdgAutomationController {
                     prefs.edit()
                         .putString("result_flash", outcome)
                         .putLong("result_flash_id", System.currentTimeMillis())
-                        .putString("recent_activity", "$pendingPeriod • ${prediction.side} • Level $level • ${prediction.strategy.title} • $outcome")
+                        .putString("recent_activity", "$pendingPeriod • ${prediction.side} • Label $level • $outcome")
                         .apply()
+
+                    if (outcome == "WIN" && prefs.getBoolean("stop_after_win_requested", false)) {
+                        prefs.edit()
+                            .putBoolean("stop_after_win_requested", false)
+                            .putBoolean("predictions_stopped", true)
+                            .putString("current_prediction", "STOPPED")
+                            .putString("current_strategy", "")
+                            .putString("bot_status", "STOPPED AFTER WIN • result sent • no next prediction")
+                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • predictions stopped")
+                            .apply()
+                        return "STOPPED AFTER WIN • result sent • no next prediction"
+                    }
                 }
             }
         }
