@@ -47,5 +47,4 @@ object TelegramNotifier {
         send(token, chatId, "Telegram connection test successful. Annu Kumar Team is connected.", callback)
     }
 
-    fun referralPromotion(referralUrl: String): String = "Session complete! Join using our BDG link: $referralUrl"
 }
