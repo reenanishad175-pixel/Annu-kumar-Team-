@@ -49,16 +49,16 @@ class MainActivity : Activity() {
     }
 
     private fun panel():LinearLayout = LinearLayout(this).apply {
-        orientation=LinearLayout.VERTICAL; setPadding(dp(10),dp(9),dp(10),dp(9))
+        orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(14),dp(16),dp(14),dp(16))
         setBackgroundColor(Color.rgb(20,29,48))
     }
 
     private fun showBdg() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(6),dp(4),dp(6),dp(4)) }
-        val dashboard=panel()
+        val dashboard=panel().apply { minimumHeight=dp(210) }
         dashboard.addView(text("🦁 COLOR PREDICTION BOT",19f,Color.WHITE,true))
         status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
-        predictionView=text("",17f,Color.CYAN,true)
+        predictionView=text("",22f,Color.RED,true).apply { setPadding(dp(8),dp(13),dp(8),dp(13)) }
         periodView=text("",14f,Color.WHITE,true)
         resultFlashView=text("",19f,Color.WHITE,true).apply {
             setPadding(dp(8),dp(8),dp(8),dp(8))
