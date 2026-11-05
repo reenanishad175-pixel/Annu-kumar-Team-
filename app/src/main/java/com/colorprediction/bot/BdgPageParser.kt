@@ -13,6 +13,7 @@ object BdgPageParser {
     private val explicitCurrent = Regex(
         """(?i)(?:current\s*)?(?:period|issue|round)\s*(?:number|no\.?|id)?\s*[:#-]?\s*(\d{12,20})"""
     )
+    private val activeGameDurationPattern = Regex("""(?i)ACTIVE_GAME_MODE:\\s*(?:win\\s*go\\s*)?(30\\s*(?:sec(?:ond)?s?|s)|1\\s*(?:min(?:ute)?s?|m)|3\\s*(?:min(?:ute)?s?|m)|5\\s*(?:min(?:ute)?s?|m))\\b""")
     private val gameDurationPattern = Regex("""(?i)\b(?:win\s*go|wingo)\s*(30\s*(?:sec(?:ond)?s?|s)|1\s*(?:min(?:ute)?s?|m)|3\s*(?:min(?:ute)?s?|m)|5\s*(?:min(?:ute)?s?|m))\b""")
     private val resultRow = Regex(
         """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:[Rr][Ee][Ss][Uu][Ll][Tt] *[:#-]? *)?(BIG|SMALL)\b"""
