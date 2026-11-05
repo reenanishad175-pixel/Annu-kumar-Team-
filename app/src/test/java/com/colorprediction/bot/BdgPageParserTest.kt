@@ -71,6 +71,20 @@ class BdgPageParserTest {
         assertEquals("3 Minutes", BdgPageParser.parse(text)!!.gameDuration)
     }
 
+    @Test fun doesNotAssumeFirstDurationWhenMultipleTabsAreVisible() {
+        val history = """
+            Win Go 30Sec
+            Win Go 1Min
+            Win Go 3Min
+            20261105100010966
+            20261105100010965 0 Small
+            20261105100010964 6 Big
+            20261105100010963 4 Small
+        """.trimIndent()
+        assertNull(BdgPageParser.parse(history)!!.gameDuration)
+        assertEquals("1 Minute", BdgPageParser.parse(history.replace("Win Go 3Min", "ACTIVE_GAME_MODE: Win Go 1Min"))!!.gameDuration)
+    }
+
     @Test fun refusesIncompleteOrAmbiguousPageText() {
         assertNull(BdgPageParser.parse("Current Period Number: 202611050001 Result: waiting"))
         assertNull(BdgPageParser.parse("BIG SMALL BIG"))
