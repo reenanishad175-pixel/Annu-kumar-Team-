@@ -1,6 +1,7 @@
 package com.colorprediction.bot
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.os.Bundle
 import android.graphics.Color
 import android.view.Gravity
@@ -20,6 +21,7 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("bot_settings", Context.MODE_PRIVATE) }
     private lateinit var root: LinearLayout
     private lateinit var status: TextView
+    private lateinit var telegramStatus: TextView
     private lateinit var predictionView: TextView
     private lateinit var periodView: TextView
     private lateinit var activityView: TextView
@@ -102,6 +104,28 @@ class MainActivity : Activity() {
             minimumHeight=dp(245)
             elevation=dp(12).toFloat()
         }
+        val telegramBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(2), dp(6), dp(2))
+            setBackgroundColor(Color.rgb(13, 34, 55))
+        }
+        telegramStatus = text(
+            prefs.getString("telegram_status", "TELEGRAM • NOT CHECKED") ?: "TELEGRAM • NOT CHECKED",
+            10f, Color.LTGRAY, true
+        ).apply { gravity = Gravity.CENTER_VERTICAL or Gravity.START; setPadding(dp(4), dp(5), dp(4), dp(5)) }
+        telegramBar.addView(telegramStatus, LinearLayout.LayoutParams(0, dp(34), 1f))
+        val telegramSettings = TextView(this).apply {
+            text = "⚙ TELEGRAM"
+            textSize = 10f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setBackgroundColor(blue)
+            setOnClickListener { showTelegramSettingsDialog() }
+        }
+        telegramBar.addView(telegramSettings, LinearLayout.LayoutParams(-2, dp(32)))
+
         val header=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
             gravity=Gravity.CENTER_VERTICAL
@@ -144,7 +168,12 @@ class MainActivity : Activity() {
             foldButton.text = if (folded) "⌄ EXPAND" else "⌃ MINIMIZE"
         }
 
-        screen.addView(dashboard,FrameLayout.LayoutParams(-1,-2,Gravity.TOP))
+        val topPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(telegramBar, LinearLayout.LayoutParams(-1, dp(40)))
+            addView(dashboard, LinearLayout.LayoutParams(-1, -2))
+        }
+        screen.addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         setContentView(screen)
     }
 
@@ -165,6 +194,17 @@ class MainActivity : Activity() {
     }
 
     private fun refreshDashboard(statusMessage: String? = null) {
+        if (::telegramStatus.isInitialized) {
+            val telegram = prefs.getString("telegram_status", "TELEGRAM • NOT CHECKED") ?: "TELEGRAM • NOT CHECKED"
+            telegramStatus.text = telegram
+            telegramStatus.setTextColor(
+                when {
+                    telegram.startsWith("SENT") || telegram.startsWith("CONNECTED") -> Color.rgb(60, 220, 130)
+                    telegram.startsWith("FAILED") || telegram.startsWith("NOT CONNECTED") || telegram.startsWith("TOKEN/CHAT") -> Color.rgb(255, 95, 95)
+                    else -> Color.rgb(255, 205, 90)
+                }
+            )
+        }
         if (::status.isInitialized) status.text = statusMessage ?: (prefs.getString("bdg_read_status","Waiting for BDG data") ?: "Waiting for BDG data")
         if (::predictionView.isInitialized) {
             val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
@@ -210,6 +250,57 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
+    private fun showTelegramSettingsDialog() {
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), dp(2)) }
+        val token = EditText(this).apply {
+            hint = "Telegram Bot Token"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine(true)
+            setText(prefs.getString("tg_token", "").orEmpty())
+        }
+        val chat = EditText(this).apply {
+            hint = "Telegram Channel / Chat ID"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+            setText(prefs.getString("tg_chat", "").orEmpty())
+        }
+        val referral = EditText(this).apply {
+            hint = "Referral Link"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            setText(prefs.getString("referral_url", "https://bdgwin98.com/#/register?invitationCode=5152785394").orEmpty())
+        }
+        content.addView(token); content.addView(chat); content.addView(referral)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Telegram Bot Settings")
+            .setMessage("Token और Chat ID सेव करने के बाद ऐप Telegram पर test message भेजकर कनेक्शन जाँचेगा।")
+            .setView(content).setNegativeButton("CANCEL", null).setPositiveButton("SAVE & TEST", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val t = token.text.toString().trim(); val c = chat.text.toString().trim(); val ref = referral.text.toString().trim()
+                if (t.isBlank() || c.isBlank()) {
+                    prefs.edit().putString("telegram_status", "TOKEN/CHAT ID MISSING • SETTINGS").apply()
+                    refreshDashboard()
+                    Toast.makeText(this, "Bot Token और Chat ID दोनों भरें", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                if (!ref.startsWith("https://")) { Toast.makeText(this, "Valid HTTPS referral link दर्ज करें", Toast.LENGTH_LONG).show(); return@setOnClickListener }
+                prefs.edit().putString("tg_token", t).putString("tg_chat", c).putString("referral_url", ref)
+                    .putString("telegram_status", "CHECKING • Telegram test message भेज रहे हैं…").apply()
+                refreshDashboard()
+                TelegramNotifier.testConnection(t, c) { success, detail ->
+                    runOnUiThread {
+                        val state = if (success) "CONNECTED • Telegram test message delivered" else "FAILED • $detail"
+                        prefs.edit().putString("telegram_status", state).apply()
+                        refreshDashboard()
+                        Toast.makeText(this, if (success) "Telegram कनेक्ट हो गया" else "Telegram error: $detail", Toast.LENGTH_LONG).show()
+                    }
+                }
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
     private fun showBotSettings() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setBackgroundColor(bg); setPadding(dp(18),dp(12),dp(18),dp(12)) }
         root.addView(text("BOT SETTINGS",22f,Color.CYAN,true))
