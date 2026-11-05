@@ -12,13 +12,6 @@ object BdgAutomationController {
         val prefs = context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         var state = loadState(prefs)
         var pendingPeriod = prefs.getString("pending_period", null)
-        if (prefs.getBoolean("predictions_stopped", false)) {
-            prefs.edit()
-                .putString("current_prediction", "STOPPED")
-                .putString("bot_status", "STOPPED AFTER WIN • no further predictions")
-                .apply()
-            return "STOPPED AFTER WIN • no further predictions"
-        }
         val outcomes = snapshot.recentOutcomes
 
         val detectedDuration = snapshot.gameDuration
@@ -100,6 +93,18 @@ object BdgAutomationController {
                     }
                 }
             }
+        }
+
+        // STOP pauses the prediction sequence only. Keep processing a pending
+        // period above so its final WIN/LOSS can still be reported, then do not
+        // create another prediction. The foreground BDG reader keeps running.
+        if (prefs.getBoolean("predictions_stopped", false)) {
+            prefs.edit()
+                .putString("current_prediction", "STOPPED")
+                .putString("current_strategy", "")
+                .putString("bot_status", "STOPPED • BDG monitoring continues")
+                .apply()
+            return "PREDICTIONS STOPPED • BDG monitoring continues"
         }
 
         // Consume already elapsed skip periods after a pause/screen-off without
