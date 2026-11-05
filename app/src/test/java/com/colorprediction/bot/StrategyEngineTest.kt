@@ -106,7 +106,7 @@ class StrategyEngineTest {
         assertEquals(0, recovered.skipRemaining)
         assertEquals(0, recovered.skipTotal)
         assertEquals("LATEST", recovered.lastProcessedPeriod)
-        assertEquals(123456L, recovered.pausedUntilMillis)
+        assertEquals(0L, recovered.pausedUntilMillis)
     }
 
     @Test fun firstHistoryReadOnlyEstablishesBaselineAndSkips() {
@@ -152,13 +152,13 @@ class StrategyEngineTest {
         assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 8), "7", p4, Side.BIG, 1000L).skipRemaining)
     }
 
-    @Test fun levelEightLossPausesOneHour() {
+    @Test fun levelEightLossDoesNotPauseOrCapPredictions() {
         val result = StrategyEngine.onOutcome(
             EngineState(level = 8), "P8",
             Prediction(Side.BIG, Strategy.ONE_BY_ONE), Side.SMALL, 10_000L
         )
-        assertEquals(10_000L + 3_600_000L, result.pausedUntilMillis)
-        assertEquals(8, result.level)
+        assertEquals(0L, result.pausedUntilMillis)
+        assertEquals(9, result.level)
         assertEquals("LOSS", result.lastOutcome)
     }
 
