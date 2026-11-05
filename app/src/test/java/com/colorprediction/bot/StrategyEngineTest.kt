@@ -53,7 +53,7 @@ class StrategyEngineTest {
     }
 
     @Test fun duplicatePeriodDoesNotConsumeSkipAgain() {
-        val state = EngineState(skipRemaining = 3, lastProcessedPeriod = "P1")
+        val state = EngineState(skipRemaining = 3, lastBetPeriod = "P1")
         val result = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG))
         assertEquals(3, result.state.skipRemaining)
     }
