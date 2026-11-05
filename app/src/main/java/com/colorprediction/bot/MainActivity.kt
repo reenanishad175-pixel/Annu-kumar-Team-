@@ -128,12 +128,37 @@ class MainActivity : Activity() {
         val url=field("https://...").apply { setText(prefs.getString("bdg_url","https://bdgwin98.com") ?: "") }
         val token=field("Telegram Bot Token",true).apply { setText(prefs.getString("tg_token","") ?: "") }
         val chat=field("Telegram Chat ID").apply { setText(prefs.getString("tg_chat","") ?: "") }
+        val referral=field("BDG Referral URL").apply {
+            setText(prefs.getString("referral_url","https://bdgwin98.com/#/register?invitationCode=5152785394") ?: "")
+            setSingleLine(true)
+        }
         root.addView(url); root.addView(text("Telegram Bot Token",14f,Color.CYAN,true)); root.addView(token)
         root.addView(text("Telegram Chat ID",14f,Color.CYAN,true)); root.addView(chat)
+        root.addView(text("BDG REFERRAL URL",14f,Color.CYAN,true)); root.addView(referral)
         root.addView(button("SAVE SETTINGS") {
-            prefs.edit().putString("bdg_url",url.text.toString().trim())
-                .putString("tg_token",token.text.toString()).putString("tg_chat",chat.text.toString().trim()).apply()
-            Toast.makeText(this,"Settings saved on this device",Toast.LENGTH_SHORT).show()
+            val bdgValue=url.text.toString().trim()
+            val referralValue=referral.text.toString().trim()
+            if (!bdgValue.startsWith("https://") || !referralValue.startsWith("https://")) {
+                Toast.makeText(this,"BDG और Referral URL में valid HTTPS link डालें",Toast.LENGTH_SHORT).show()
+            } else {
+                prefs.edit().putString("bdg_url",bdgValue)
+                    .putString("tg_token",token.text.toString()).putString("tg_chat",chat.text.toString().trim())
+                    .putString("referral_url",referralValue).apply()
+                Toast.makeText(this,"Settings saved on this device",Toast.LENGTH_SHORT).show()
+            }
+        })
+        root.addView(button("SEND TELEGRAM TEST") {
+            val t=token.text.toString().trim()
+            val ch=chat.text.toString().trim()
+            if (t.isBlank() || ch.isBlank()) {
+                Toast.makeText(this,"Bot Token और Chat ID भरें",Toast.LENGTH_SHORT).show()
+            } else {
+                TelegramNotifier.send(t,ch,"Color Prediction Bot: Telegram connection test") { ok ->
+                    runOnUiThread {
+                        Toast.makeText(this,if(ok) "Telegram test sent" else "Telegram test failed • details check करें",Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         })
         root.addView(button("BACK TO DASHBOARD") { showDashboard() })
         setContentView(root)
