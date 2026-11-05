@@ -28,7 +28,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SessionScheduler.scheduleAll(this)
-        showDashboard()
+        val savedUrl = prefs.getString("bdg_url", "") ?: ""
+        if (savedUrl.startsWith("https://")) showBdg() else showLoginLinkSettings()
     }
 
     private fun text(s:String,size:Float=16f,color:Int=Color.WHITE,bold:Boolean=false):TextView =
@@ -82,34 +83,29 @@ class MainActivity : Activity() {
     }
 
     private fun showBdg() {
-        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(8),dp(8),dp(8),dp(8)) }
-        root.addView(text("BDG LOGIN",20f,Color.WHITE,true))
-        val urlField=field("BDG login URL").apply { setText(prefs.getString("bdg_url","https://bdgwin98.com") ?: "") }
-        root.addView(urlField)
-        root.addView(button("OPEN / SAVE BDG PAGE") {
-            val u=urlField.text.toString().trim()
-            if(u.startsWith("https://")) { prefs.edit().putString("bdg_url",u).apply(); web.loadUrl(u) }
-            else Toast.makeText(this,"HTTPS URL दर्ज करें",Toast.LENGTH_SHORT).show()
-        })
+        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(8),dp(6),dp(8),dp(6)) }
+        val dashboard=panel()
+        dashboard.addView(text("🦁 COLOR PREDICTION BOT",18f,Color.WHITE,true))
+        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",12f,Color.YELLOW,true)
+        dashboard.addView(status)
+        dashboard.addView(text("PREDICTION: ${prefs.getString("current_prediction","WAITING") ?: "WAITING"}    •    LEVEL ${prefs.getInt("current_level",1)}/8",14f,Color.CYAN,true))
+        dashboard.addView(text("PERIOD: ${prefs.getString("current_period","—") ?: "—"}    •    SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}",12f,Color.WHITE))
+        dashboard.addView(text("ACTIVITY: ${prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result"}",11f,Color.LTGRAY))
+        root.addView(dashboard, LinearLayout.LayoutParams(-1, dp(150)))
         web=WebView(this).apply {
             settings.javaScriptEnabled=true; settings.domStorageEnabled=true
             addJavascriptInterface(BdgJavascriptBridge(), "AndroidBdg")
             webViewClient=object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    view.evaluateJavascript(
-                        "(function(){if(window.__colorBotReader)return;window.__colorBotReader=true;setInterval(function(){try{if(window.AndroidBdg&&document.body){window.AndroidBdg.onPageText(document.body.innerText||'');}}catch(e){}},2000);})();",
-                        null
-                    )
+                    view.evaluateJavascript("(function(){if(window.__colorBotReader)return;window.__colorBotReader=true;setInterval(function(){try{if(window.AndroidBdg&&document.body){window.AndroidBdg.onPageText(document.body.innerText||'');}}catch(e){}},2000);})();", null)
                 }
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
         root.addView(web,LinearLayout.LayoutParams(-1,0,1f))
-        root.addView(button("BACK TO DASHBOARD") { showDashboard() })
         setContentView(root)
     }
-
     private inner class BdgJavascriptBridge {
         @JavascriptInterface
         fun onPageText(pageText: String) {
@@ -127,30 +123,26 @@ class MainActivity : Activity() {
     }
 
     private fun showLoginLinkSettings() {
-        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(16),dp(12),dp(16),dp(12)) }
-        root.addView(text("BDG LOGIN LINK SETTINGS",21f,Color.WHITE,true))
-        root.addView(text("यहाँ अपना BDG login / game URL डालें। Save करने के बाद BDG LOGIN PAGE इसी लिंक को खोलेगा।",14f,Color.LTGRAY))
+        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setBackgroundColor(bg); setPadding(dp(20),dp(16),dp(20),dp(16)) }
+        root.addView(text("🦁 COLOR PREDICTION BOT",22f,Color.WHITE,true))
+        root.addView(text("BDG LOGIN LINK SETUP",17f,Color.CYAN,true))
+        root.addView(text("अपना BDG गेम लॉगिन लिंक डालें। OK दबाते ही गेम लॉगिन पेज और डैशबोर्ड साथ खुलेंगे।",14f,Color.LTGRAY))
         val url=field("https://your-bdg-login-link.com").apply {
             setSingleLine(true)
             setText(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
-        root.addView(text("BDG LOGIN URL",14f,Color.CYAN,true))
         root.addView(url)
-        root.addView(button("SAVE LOGIN LINK") {
+        root.addView(button("OK • OPEN GAME + DASHBOARD") {
             val value=url.text.toString().trim()
             if (value.startsWith("https://")) {
                 prefs.edit().putString("bdg_url",value).apply()
-                Toast.makeText(this,"BDG login link saved",Toast.LENGTH_SHORT).show()
+                showBdg()
             } else {
                 Toast.makeText(this,"Valid HTTPS link दर्ज करें",Toast.LENGTH_SHORT).show()
             }
         })
-        root.addView(button("OPEN BDG LOGIN PAGE") { showBdg() })
-        root.addView(button("BACK TO DASHBOARD") { showDashboard() })
-        val scroll = ScrollView(this).apply { addView(root) }
-        setContentView(scroll)
+        setContentView(root)
     }
-
     private fun showSettings() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(16),dp(12),dp(16),dp(12)) }
         root.addView(text("BOT SETTINGS",22f,Color.WHITE,true))
