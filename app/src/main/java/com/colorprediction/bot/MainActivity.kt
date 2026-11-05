@@ -133,7 +133,7 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(185, 35, 35))
             gravity = Gravity.CENTER
             setBackgroundColor(Color.rgb(255, 230, 230))
-            contentDescription = "Pause Telegram predictions; dashboard monitoring continues"
+            contentDescription = "Stop predictions after the current sequence gets a WIN"
             isClickable = true
             isFocusable = true
             setOnClickListener {
