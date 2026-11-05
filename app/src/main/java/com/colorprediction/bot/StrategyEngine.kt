@@ -17,6 +17,7 @@ data class Prediction(val side: Side, val strategy: Strategy)
 data class EngineState(
     val level: Int = 1,
     val skipRemaining: Int = 0,
+    val skipTotal: Int = 0,
     val pausedUntilMillis: Long = 0L,
     val lastBetPeriod: String? = null,
     val lastProcessedPeriod: String? = null,
@@ -79,13 +80,13 @@ object StrategyEngine {
         val win = prediction.side == actual
         if (win) {
             return state.copy(
-                level = 1, skipRemaining = 0, lastBetPeriod = period,
+                level = 1, skipRemaining = 0, skipTotal = 0, lastBetPeriod = period,
                 lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "WIN"
             )
         }
         if (state.level >= 8) {
             return state.copy(
-                skipRemaining = 0, pausedUntilMillis = now + 60L * 60L * 1000L,
+                skipRemaining = 0, skipTotal = 0, pausedUntilMillis = now + 60L * 60L * 1000L,
                 lastBetPeriod = period, lastPrediction = prediction.side,
                 lastStrategy = prediction.strategy, lastOutcome = "LOSS"
             )
@@ -97,7 +98,7 @@ object StrategyEngine {
             Strategy.LAST_THREE_B -> if (state.level == 1) 0 else 1
         }
         return state.copy(
-            level = nextLevel, skipRemaining = skips, lastBetPeriod = period,
+            level = nextLevel, skipRemaining = skips, skipTotal = skips, lastBetPeriod = period,
             lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "LOSS"
         )
     }
