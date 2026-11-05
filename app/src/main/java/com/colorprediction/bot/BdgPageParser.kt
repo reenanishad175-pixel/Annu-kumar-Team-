@@ -18,7 +18,11 @@ object BdgPageParser {
 
     fun parse(pageText: String): BdgPageSnapshot? {
         val current = currentPeriodRegex.find(pageText)?.groupValues?.getOrNull(1) ?: return null
-        val pairs = pairRegex.findAll(pageText)
+        val historyText = pageText.replace(
+            Regex("(?i)current\\s*(?:period|issue|round)\\s*(?:number|no\\.?|id)?\\s*[:#-]?\\s*\\d{6,}"),
+            ""
+        )
+        val pairs = pairRegex.findAll(historyText)
             .map { match ->
                 PeriodOutcome(
                     match.groupValues[1],
