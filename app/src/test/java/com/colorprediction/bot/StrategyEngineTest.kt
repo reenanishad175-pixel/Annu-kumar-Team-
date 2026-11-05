@@ -26,6 +26,17 @@ class StrategyEngineTest {
         assertEquals(2, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
     }
 
+    @Test fun changingGameDurationStartsFreshAtLatestPeriod() {
+        val reset = StrategyEngine.resetForGameDuration("NEW_GAME_PERIOD")
+        assertEquals(1, reset.level)
+        assertEquals(0, reset.skipRemaining)
+        assertEquals(0, reset.skipTotal)
+        assertEquals(0L, reset.pausedUntilMillis)
+        assertEquals("NEW_GAME_PERIOD", reset.lastProcessedPeriod)
+        assertNull(reset.lastPrediction)
+        assertNull(reset.lastStrategy)
+    }
+
     @Test fun expiredPendingRecoveryResetsLevelAndSkipsAtLatestPeriod() {
         val original = EngineState(
             level = 6,
