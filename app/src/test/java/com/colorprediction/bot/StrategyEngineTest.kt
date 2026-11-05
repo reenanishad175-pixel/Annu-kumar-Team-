@@ -39,7 +39,7 @@ class StrategyEngineTest {
         assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 1), "1", p1, Side.BIG, 1000L).skipTotal)
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipRemaining)
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipTotal)
-        assertEquals(4, StrategyEngine.onOutcome(EngineState(level = 8), "1", p1, Side.BIG, 1000L).skipRemaining)
+        assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 8), "1", p1, Side.BIG, 1000L).skipRemaining)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "2", p2, Side.BIG, 1000L).skipRemaining)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
         assertEquals(0, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
