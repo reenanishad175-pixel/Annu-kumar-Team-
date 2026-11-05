@@ -3,10 +3,10 @@ package com.colorprediction.bot
 /** Pattern decision engine. BDG history is passed newest-first. */
 enum class Side { BIG, SMALL }
 enum class Strategy(val title: String) {
-    TREND_BASE("Strategy 1 • Trend Base"),
-    ONE_BY_ONE("Strategy 2 • One by One"),
-    LAST_THREE_A("Strategy 4"),
-    LAST_THREE_B("Strategy 3")
+    TREND_BASE("Label 1"),
+    ONE_BY_ONE("Label 2"),
+    LAST_THREE_A("Label 4"),
+    LAST_THREE_B("Label 3")
 }
 
 data class Prediction(val side: Side, val strategy: Strategy)
