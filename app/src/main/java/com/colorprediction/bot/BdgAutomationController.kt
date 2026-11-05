@@ -103,6 +103,7 @@ object BdgAutomationController {
     private fun loadState(prefs: android.content.SharedPreferences) = EngineState(
         level = prefs.getInt("engine_level", 1).coerceIn(1, 8),
         skipRemaining = prefs.getInt("engine_skip", 0).coerceAtLeast(0),
+        skipTotal = prefs.getInt("engine_skip_total", 0).coerceAtLeast(0),
         pausedUntilMillis = prefs.getLong("engine_pause_until", 0L),
         lastBetPeriod = prefs.getString("engine_last_bet_period", null),
         lastProcessedPeriod = prefs.getString("engine_last_processed_period", null),
@@ -114,6 +115,7 @@ object BdgAutomationController {
     private fun saveState(prefs: android.content.SharedPreferences, state: EngineState) {
         prefs.edit().putInt("engine_level", state.level)
             .putInt("engine_skip", state.skipRemaining)
+            .putInt("engine_skip_total", state.skipTotal)
             .putLong("engine_pause_until", state.pausedUntilMillis)
             .putString("engine_last_bet_period", state.lastBetPeriod)
             .putString("engine_last_processed_period", state.lastProcessedPeriod)
