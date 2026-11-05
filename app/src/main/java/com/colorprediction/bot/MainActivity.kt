@@ -42,7 +42,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (::web.isInitialized) {
             web.onResume()
-            WebView.resumeTimers()
+            web.resumeTimers()
             web.postDelayed({
                 if (::web.isInitialized) {
                     web.evaluateJavascript("window.__colorBotReadNow && window.__colorBotReadNow()", null)
