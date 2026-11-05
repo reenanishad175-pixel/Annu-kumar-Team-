@@ -10,6 +10,8 @@ import android.webkit.JavascriptInterface
 import android.widget.*
 import android.text.InputType
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("bot_settings", Context.MODE_PRIVATE) }
@@ -18,9 +20,12 @@ class MainActivity : Activity() {
     private lateinit var predictionView: TextView
     private lateinit var periodView: TextView
     private lateinit var activityView: TextView
+    private lateinit var resultFlashView: TextView
     private lateinit var web: WebView
     private val bg = Color.rgb(8, 13, 25)
     private val blue = Color.rgb(18, 112, 255)
+    private var lastFlashId = 0L
+    private val handler = Handler(Looper.getMainLooper())
     private fun dp(v:Int)= (v*resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,7 +35,7 @@ class MainActivity : Activity() {
     }
 
     private fun text(s:String,size:Float=16f,color:Int=Color.WHITE,bold:Boolean=false):TextView =
-        TextView(this).apply { text=s; textSize=size; setTextColor(color); gravity=Gravity.CENTER; if(bold) setTypeface(null,1); setPadding(dp(6),dp(4),dp(6),dp(4)) }
+        TextView(this).apply { text=s; textSize=size; setTextColor(color); gravity=Gravity.CENTER; if(bold) setTypeface(null,1); setPadding(dp(6),dp(7),dp(6),dp(7)) }
 
     private fun button(s:String, action:()->Unit)=Button(this).apply {
         text=s; setTextColor(Color.WHITE); setBackgroundColor(blue); setOnClickListener { action() }
@@ -39,28 +44,34 @@ class MainActivity : Activity() {
     private fun field(hint:String, secret:Boolean=false):EditText = EditText(this).apply {
         this.hint=hint; setHintTextColor(Color.LTGRAY); setTextColor(Color.WHITE)
         inputType=if(secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_CLASS_TEXT
-        setPadding(dp(12),dp(4),dp(12),dp(4))
+        setSingleLine(true)
+        setPadding(dp(12),dp(8),dp(12),dp(8))
     }
 
     private fun panel():LinearLayout = LinearLayout(this).apply {
-        orientation=LinearLayout.VERTICAL; setPadding(dp(8),dp(5),dp(8),dp(5))
+        orientation=LinearLayout.VERTICAL; setPadding(dp(10),dp(9),dp(10),dp(9))
         setBackgroundColor(Color.rgb(20,29,48))
     }
 
     private fun showBdg() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(dp(6),dp(4),dp(6),dp(4)) }
         val dashboard=panel()
-        dashboard.addView(text("🦁 COLOR PREDICTION BOT",16f,Color.WHITE,true))
-        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",11f,Color.YELLOW,true)
-        predictionView=text("",13f,Color.CYAN,true)
-        periodView=text("",11f,Color.WHITE)
-        activityView=text("",10f,Color.LTGRAY)
+        dashboard.addView(text("🦁 COLOR PREDICTION BOT",19f,Color.WHITE,true))
+        status=text(prefs.getString("bdg_read_status","BDG PAGE OPEN • Waiting for readable game data") ?: "BDG PAGE OPEN • Waiting for readable game data",13f,Color.YELLOW,true)
+        predictionView=text("",17f,Color.CYAN,true)
+        periodView=text("",14f,Color.WHITE,true)
+        resultFlashView=text("",19f,Color.WHITE,true).apply {
+            setPadding(dp(8),dp(8),dp(8),dp(8))
+            visibility=android.view.View.GONE
+        }
+        activityView=text("",13f,Color.LTGRAY)
         dashboard.addView(status)
         dashboard.addView(predictionView)
         dashboard.addView(periodView)
+        dashboard.addView(resultFlashView)
         dashboard.addView(activityView)
         refreshDashboard()
-        // Wrap content prevents the dashboard card from being clipped on short screens.
+        // Expanded wrap-content dashboard stays fully visible above the game WebView.
         root.addView(dashboard,LinearLayout.LayoutParams(-1,-2))
         web=WebView(this).apply {
             settings.javaScriptEnabled=true
@@ -70,7 +81,6 @@ class MainActivity : Activity() {
             webViewClient=object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
-                    // Read the rendered page text repeatedly, including SPA route/content changes.
                     view.evaluateJavascript("(function(){if(window.__colorBotReaderTimer)clearInterval(window.__colorBotReaderTimer);window.__colorBotReaderTimer=setInterval(function(){try{if(window.AndroidBdg&&document.body){var t=document.body.innerText||'';window.AndroidBdg.onPageText(t);}}catch(e){}},2500);})();", null)
                 }
             }
@@ -102,6 +112,19 @@ class MainActivity : Activity() {
             "PERIOD: ${prefs.getString("current_period","—") ?: "—"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}"
         if (::activityView.isInitialized) activityView.text =
             "ACTIVITY: ${prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result"}"
+        val flashId=prefs.getLong("result_flash_id",0L)
+        if (::resultFlashView.isInitialized && flashId>lastFlashId) {
+            lastFlashId=flashId
+            val outcome=prefs.getString("result_flash","").orEmpty()
+            if (outcome=="WIN" || outcome=="LOSS") {
+                resultFlashView.text=if(outcome=="WIN") "✓  YOUR WIN!" else "✕  YOUR LOSS"
+                resultFlashView.setTextColor(Color.WHITE)
+                resultFlashView.setBackgroundColor(if(outcome=="WIN") Color.rgb(20,150,75) else Color.rgb(190,45,45))
+                resultFlashView.visibility=android.view.View.VISIBLE
+                handler.removeCallbacksAndMessages(null)
+                handler.postDelayed({ if(::resultFlashView.isInitialized) resultFlashView.visibility=android.view.View.GONE },5000)
+            }
+        }
     }
 
     private fun showLoginLinkSettings() {
@@ -110,7 +133,6 @@ class MainActivity : Activity() {
         root.addView(text("BDG LOGIN LINK SETUP",17f,Color.CYAN,true))
         root.addView(text("अपना BDG गेम लॉगिन लिंक डालें। OK दबाते ही गेम लॉगिन पेज और डैशबोर्ड साथ खुलेंगे।",14f,Color.LTGRAY))
         val url=field("https://your-bdg-login-link.com").apply {
-            setSingleLine(true)
             setText(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
         root.addView(url)
@@ -121,6 +143,31 @@ class MainActivity : Activity() {
                 showBdg()
             } else Toast.makeText(this,"Valid HTTPS link दर्ज करें",Toast.LENGTH_SHORT).show()
         })
+        root.addView(button("BOT SETTINGS • TELEGRAM / REFERRAL") { showBotSettings() })
+        setContentView(root)
+    }
+
+    private fun showBotSettings() {
+        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setBackgroundColor(bg); setPadding(dp(18),dp(12),dp(18),dp(12)) }
+        root.addView(text("BOT SETTINGS",22f,Color.CYAN,true))
+        root.addView(text("Telegram और referral details यहाँ सेव करें।",14f,Color.LTGRAY))
+        val token=field("Telegram Bot Token",true).apply { setText(prefs.getString("tg_token","") ?: "") }
+        val chat=field("Telegram Channel / Chat ID").apply { setText(prefs.getString("tg_chat","") ?: "") }
+        val referral=field("Referral Link").apply { setText(prefs.getString("referral_url","https://bdgwin98.com/#/register?invitationCode=5152785394") ?: "") }
+        root.addView(token)
+        root.addView(chat)
+        root.addView(referral)
+        root.addView(button("SAVE BOT SETTINGS") {
+            val t=token.text.toString().trim()
+            val c=chat.text.toString().trim()
+            val ref=referral.text.toString().trim()
+            if(ref.startsWith("https://")) {
+                prefs.edit().putString("tg_token",t).putString("tg_chat",c).putString("referral_url",ref).apply()
+                Toast.makeText(this,"Bot settings saved on this device",Toast.LENGTH_SHORT).show()
+                showLoginLinkSettings()
+            } else Toast.makeText(this,"Valid HTTPS referral link दर्ज करें",Toast.LENGTH_SHORT).show()
+        })
+        root.addView(button("BACK") { showLoginLinkSettings() })
         setContentView(root)
     }
 }
