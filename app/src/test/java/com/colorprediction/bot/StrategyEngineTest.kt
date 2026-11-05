@@ -42,8 +42,10 @@ class StrategyEngineTest {
         assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 8), "1", p1, Side.BIG, 1000L).skipRemaining)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "2", p2, Side.BIG, 1000L).skipRemaining)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
+        assertEquals(2, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
         assertEquals(2, StrategyEngine.onOutcome(EngineState(level = 2), "5", p4, Side.BIG, 1000L).skipRemaining)
+        assertEquals(1, StrategyEngine.onOutcome(EngineState(level = 8), "6", p3, Side.BIG, 1000L).skipRemaining)
+        assertEquals(2, StrategyEngine.onOutcome(EngineState(level = 8), "7", p4, Side.BIG, 1000L).skipRemaining)
     }
 
     @Test fun levelEightLossPausesOneHour() {
