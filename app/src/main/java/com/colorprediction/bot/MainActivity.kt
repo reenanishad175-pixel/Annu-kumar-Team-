@@ -133,11 +133,11 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(185, 35, 35))
             gravity = Gravity.CENTER
             setBackgroundColor(Color.rgb(255, 230, 230))
-            contentDescription = "Stop predictions after the next WIN"
+            contentDescription = "Pause Telegram predictions; dashboard monitoring continues"
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                prefs.edit().putBoolean("telegram_predictions_paused", true).apply()
+                prefs.edit().putBoolean("telegram_predictions_paused", true).putString("telegram_status", "PAUSED • Telegram predictions").apply()
                 Toast.makeText(
                     this@MainActivity,
                     "Telegram predictions paused • BDG dashboard monitoring continues",
