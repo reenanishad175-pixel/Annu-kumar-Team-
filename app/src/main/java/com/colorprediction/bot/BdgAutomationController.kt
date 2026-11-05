@@ -18,21 +18,17 @@ object BdgAutomationController {
         var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
 
-        // If the app was closed long enough that the pending period has fallen
-        // behind the oldest result still visible in BDG history, do not leave
-        // the engine blocked forever. Clear only that stale pending record;
-        // never invent a WIN/LOSS for a result we can no longer verify.
+        // Keep a pending bet until its exact result is found in the visible
+        // history. Clearing it without settling used to leave the loss level
+        // frozen after the phone screen stayed off and BDG history advanced.
         val oldestVisiblePeriod = outcomes.lastOrNull()?.period
-        if (pendingPeriod != null && oldestVisiblePeriod != null &&
-            comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0) {
+        val pendingExpired = pendingPeriod != null && oldestVisiblePeriod != null &&
+            comparePeriodIds(pendingPeriod, oldestVisiblePeriod) < 0
+        if (pendingExpired) {
             prefs.edit()
-                .remove("pending_period").remove("pending_side")
-                .remove("pending_strategy").remove("pending_level")
-                .remove("pending_session_key")
-                .putString("current_prediction", "WAITING")
-                .putString("bot_status", "OLD PERIOD EXPIRED • Resuming live BDG reading")
+                .putString("current_prediction", "WAITING FOR RESULT")
+                .putString("bot_status", "RESULT NOT IN VISIBLE HISTORY • Level held until verified")
                 .apply()
-            pendingPeriod = null
         }
 
         if (pendingPeriod != null) {
