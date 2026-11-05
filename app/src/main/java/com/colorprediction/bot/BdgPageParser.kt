@@ -1,7 +1,7 @@
 package com.colorprediction.bot
 
 data class PeriodOutcome(val period: String, val side: Side)
-/** recentOutcomes are newest first; strategy evaluation reverses the newest three. */
+/** recentOutcomes are newest first; strategy evaluation matches the first three in displayed order. */
 data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>, val gameDuration: String? = null)
 
 /**
