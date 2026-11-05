@@ -81,15 +81,17 @@ object BdgAutomationController {
                         .apply()
 
                     if (outcome == "WIN" && prefs.getBoolean("stop_after_win_requested", false)) {
+                        // The stop request belongs to Telegram delivery only.
+                        // Keep the BDG reader and dashboard prediction engine alive.
                         prefs.edit()
                             .putBoolean("stop_after_win_requested", false)
-                            .putBoolean("predictions_stopped", true)
-                            .putString("current_prediction", "STOPPED")
+                            .putBoolean("predictions_stopped", false)
+                            .putBoolean("telegram_predictions_paused", true)
                             .putString("current_strategy", "")
-                            .putString("bot_status", "STOPPED AFTER WIN • result sent • no next prediction")
-                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • predictions stopped")
+                            .putString("bot_status", "BDG READING ACTIVE • live dashboard predictions continue")
+                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • Telegram sequence finished")
                             .apply()
-                        return "STOPPED AFTER WIN • result sent • no next prediction"
+                        return "BDG READING ACTIVE • live dashboard predictions continue"
                     }
                 }
             }
@@ -99,12 +101,13 @@ object BdgAutomationController {
         // period above so its final WIN/LOSS can still be reported, then do not
         // create another prediction. The foreground BDG reader keeps running.
         if (prefs.getBoolean("predictions_stopped", false)) {
+            // Migrate a previously persisted global stop into a Telegram-only
+            // pause so old app state cannot freeze the live dashboard.
             prefs.edit()
-                .putString("current_prediction", "STOPPED")
-                .putString("current_strategy", "")
-                .putString("bot_status", "STOPPED • BDG monitoring continues")
+                .putBoolean("predictions_stopped", false)
+                .putBoolean("telegram_predictions_paused", true)
+                .putString("bot_status", "BDG READING ACTIVE • live dashboard predictions continue")
                 .apply()
-            return "PREDICTIONS STOPPED • BDG monitoring continues"
         }
 
         // Consume already elapsed skip periods after a pause/screen-off without
