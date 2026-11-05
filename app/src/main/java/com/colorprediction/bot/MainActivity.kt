@@ -28,8 +28,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SessionScheduler.scheduleAll(this)
-        val savedUrl = prefs.getString("bdg_url", "") ?: ""
-        if (savedUrl.startsWith("https://")) showBdg() else showLoginLinkSettings()
+        showLoginLinkSettings()
     }
 
     private fun text(s:String,size:Float=16f,color:Int=Color.WHITE,bold:Boolean=false):TextView =
