@@ -149,8 +149,9 @@ object BdgAutomationController {
         // Do not stop here outside Telegram hours: the local prediction engine
         // and dashboard continue to process every new BDG period all day.
         if (!pendingStillExists && snapshot.currentPeriod != state.lastProcessedPeriod) {
-            val newestThree = outcomes.take(3).asReversed().map { it.side }
-            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, newestThree)
+            val strategyHistory = outcomes.map { it.side }
+            val patternThree = StrategyEngine.patternFromRecentResults(strategyHistory)
+            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, patternThree)
             state = update.state
             saveState(prefs, state)
             val prediction = update.prediction
