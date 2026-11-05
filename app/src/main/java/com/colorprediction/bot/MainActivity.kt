@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import android.widget.*
 import android.text.InputType
 import android.content.Context
@@ -54,7 +55,7 @@ class MainActivity : Activity() {
         body.addView(text("🦁  COLOR PREDICTION BOT",22f,Color.WHITE,true))
         body.addView(text("Lion Edition • Strategy Dashboard",13f,Color.LTGRAY))
         val statusCard=panel()
-        status=text("READY • BDG page not connected",14f,Color.YELLOW,true)
+        status=text(prefs.getString("bdg_read_status","READY • BDG page not connected") ?: "READY • BDG page not connected",14f,Color.YELLOW,true)
         statusCard.addView(status)
         body.addView(statusCard)
         val pred=panel()
@@ -90,12 +91,37 @@ class MainActivity : Activity() {
         })
         web=WebView(this).apply {
             settings.javaScriptEnabled=true; settings.domStorageEnabled=true
-            webViewClient=WebViewClient()
+            addJavascriptInterface(BdgJavascriptBridge(), "AndroidBdg")
+            webViewClient=object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    view.evaluateJavascript(
+                        "(function(){if(window.__colorBotReader)return;window.__colorBotReader=true;setInterval(function(){try{if(window.AndroidBdg&&document.body){window.AndroidBdg.onPageText(document.body.innerText||'');}}catch(e){}},2000);})();",
+                        null
+                    )
+                }
+            }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
         root.addView(web,LinearLayout.LayoutParams(-1,0,1f))
         root.addView(button("BACK TO DASHBOARD") { showDashboard() })
         setContentView(root)
+    }
+
+    private inner class BdgJavascriptBridge {
+        @JavascriptInterface
+        fun onPageText(pageText: String) {
+            val snapshot = BdgPageParser.parse(pageText)
+            val message = if (snapshot == null) {
+                "BDG PAGE OPEN • Waiting for readable period + 3 results"
+            } else {
+                "BDG TEXT DETECTED • Period ${snapshot.currentPeriod} • ${snapshot.recentOutcomes.size} result rows • awaiting live validation"
+            }
+            prefs.edit().putString("bdg_read_status", message).apply()
+            runOnUiThread {
+                if (::status.isInitialized) status.text = message
+            }
+        }
     }
 
     private fun showLoginLinkSettings() {
