@@ -137,11 +137,11 @@ class MainActivity : Activity() {
         root.addView(url)
         root.addView(button("SAVE LOGIN LINK") {
             val value=url.text.toString().trim()
-            if (value.startsWith("https://") || value.startsWith("http://")) {
+            if (value.startsWith("https://")) {
                 prefs.edit().putString("bdg_url",value).apply()
                 Toast.makeText(this,"BDG login link saved",Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this,"Valid http:// or https:// link दर्ज करें",Toast.LENGTH_SHORT).show()
+                Toast.makeText(this,"Valid HTTPS link दर्ज करें",Toast.LENGTH_SHORT).show()
             }
         })
         root.addView(button("OPEN BDG LOGIN PAGE") { showBdg() })
