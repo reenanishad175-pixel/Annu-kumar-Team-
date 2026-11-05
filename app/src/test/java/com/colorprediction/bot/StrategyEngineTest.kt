@@ -6,6 +6,30 @@ import org.junit.Test
 class StrategyEngineTest {
     private fun s(vararg values: Side) = values.toList()
 
+    @Test fun parserSortsHistoryNewestFirstEvenWhenPageTextIsOldestFirst() {
+        val page = listOf(
+            "Current Period: 202611051234",
+            "202611051231 2 SMALL",
+            "202611051232 8 BIG",
+            "202611051233 1 SMALL"
+        ).joinToString("\n")
+
+        val snapshot = BdgPageParser.parse(page)!!
+        assertEquals("202611051234", snapshot.currentPeriod)
+        assertEquals(
+            listOf("202611051233", "202611051232", "202611051231"),
+            snapshot.recentOutcomes.map { it.period }
+        )
+        assertEquals(
+            listOf(Side.SMALL, Side.BIG, Side.SMALL),
+            snapshot.recentOutcomes.map { it.side }
+        )
+        assertEquals(
+            listOf(Side.SMALL, Side.BIG, Side.SMALL),
+            StrategyEngine.patternFromRecentResults(snapshot.recentOutcomes.map { it.side })
+        )
+    }
+
     @Test fun allEightConfiguredPatternsMatchExactly() {
         assertEquals(Prediction(Side.SMALL, Strategy.TREND_BASE), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.SMALL)))
         assertEquals(Prediction(Side.BIG, Strategy.TREND_BASE), StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.BIG)))
