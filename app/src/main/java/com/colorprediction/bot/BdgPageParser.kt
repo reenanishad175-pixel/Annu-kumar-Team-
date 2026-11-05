@@ -1,7 +1,7 @@
 package com.colorprediction.bot
 
 data class PeriodOutcome(val period: String, val side: Side)
-/** recentOutcomes are newest first; strategy evaluation matches the first three in displayed order. */
+/** recentOutcomes are always sorted newest period first, independent of BDG DOM row order. */
 data class BdgPageSnapshot(val currentPeriod: String, val recentOutcomes: List<PeriodOutcome>, val gameDuration: String? = null)
 
 /**
@@ -19,6 +19,15 @@ object BdgPageParser {
         """(?i)\b(\d{12,20})\b[\s|,;:#-]*(?:[0-9]\s+)?(?:[Rr][Ee][Ss][Uu][Ll][Tt] *[:#-]? *)?(BIG|SMALL)\b"""
     )
 
+    private fun comparePeriodIds(a: String, b: String): Int {
+        val left = a.trimStart('0')
+        val right = b.trimStart('0')
+        return when {
+            left.length != right.length -> left.length.compareTo(right.length)
+            else -> left.compareTo(right)
+        }
+    }
+
     fun parse(pageText: String): BdgPageSnapshot? {
         if (pageText.isBlank()) return null
         val ids = periodId.findAll(pageText).map { it.groupValues[1] }.distinct().toList()
@@ -32,7 +41,11 @@ object BdgPageParser {
         val pairedIds = pairs.map { it.period }.toSet()
         val standalone = ids.firstOrNull { it !in pairedIds }
         val current = explicit ?: standalone ?: ids.maxOrNull() ?: return null
-        val history = pairs.filterNot { it.period == current }.take(30)
+        // Do not trust DOM/text order: some BDG layouts expose the history oldest-first.
+        // Sort by numeric period ID so the strategy engine always receives newest-first.
+        val history = pairs.filterNot { it.period == current }
+            .sortedWith { left, right -> comparePeriodIds(right.period, left.period) }
+            .take(30)
         if (history.size < 3) return null
         // The page text can list inactive durations too; prefer the selected tab marker.
         val durationToken = (activeGameDurationPattern.find(pageText) ?: gameDurationPattern.find(pageText))
