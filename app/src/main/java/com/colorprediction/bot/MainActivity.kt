@@ -166,7 +166,7 @@ class MainActivity : Activity() {
                 "PREDICTION: $prediction  •  LEVEL ${prefs.getInt("current_level",1)}/8$strategyLabel"
         }
         if (::periodView.isInitialized) periodView.text =
-            "PERIOD: ${prefs.getString("current_period","—") ?: "—"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}"
+            "GAME: ${prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—"}  •  PERIOD: ${prefs.getString("current_period","—") ?: "—"}  •  SKIP: ${prefs.getInt("engine_skip",0)}/${prefs.getInt("engine_skip_total",0)}"
         if (::activityView.isInitialized) activityView.text =
             "ACTIVITY: ${prefs.getString("recent_activity","Waiting for first result") ?: "Waiting for first result"}"
         val flashId=prefs.getLong("result_flash_id",0L)
