@@ -13,7 +13,8 @@ object TelegramReports {
         val token: String,
         val chatId: String,
         val message: String,
-        val label: String
+        val label: String,
+        val parseMode: String? = null
     )
 
     private val queueLock = Any()
@@ -21,11 +22,11 @@ object TelegramReports {
     private var sending = false
 
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
-        val marker = if (prediction.side == Side.BIG) "🔵" else "🔴"
         enqueue(
             context,
-            "━━━━━━━━━━━━\n🚀 LIVE PREDICTION\n\n${prediction.side} $marker\n🆔 Period: $period\n🏷️ Label: $level\n━━━━━━━━━━━━",
-            "PREDICTION"
+            "━━━━━━━━━━━━\n🚀 LIVE PREDICTION\n\n<b>${prediction.side.name}</b>\n🆔 Period: $period\n🏷️ Label: $level\n━━━━━━━━━━━━",
+            "PREDICTION",
+            "HTML"
         )
     }
 
@@ -58,7 +59,7 @@ object TelegramReports {
         )
     }
 
-    private fun enqueue(context: Context, message: String, label: String) {
+    private fun enqueue(context: Context, message: String, label: String, parseMode: String? = null) {
         val appContext = context.applicationContext
         val prefs = appContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         val token = prefs.getString("tg_token", "").orEmpty()
@@ -69,7 +70,7 @@ object TelegramReports {
         }
 
         val shouldStart = synchronized(queueLock) {
-            queue.addLast(Outgoing(appContext, token, chat, message, label))
+            queue.addLast(Outgoing(appContext, token, chat, message, label, parseMode))
             if (sending) false else {
                 sending = true
                 true
@@ -88,7 +89,7 @@ object TelegramReports {
 
         val prefs = item.context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
         prefs.edit().putString("telegram_status", "SENDING • ${item.label}").apply()
-        TelegramNotifier.send(item.token, item.chatId, item.message) { success, detail ->
+        TelegramNotifier.send(item.token, item.chatId, item.message, item.parseMode) { success, detail ->
             prefs.edit()
                 .putString("telegram_status", if (success) "SENT • ${item.label}" else "FAILED • ${item.label} • $detail")
                 .putString("telegram_last_error", if (success) "" else detail)
