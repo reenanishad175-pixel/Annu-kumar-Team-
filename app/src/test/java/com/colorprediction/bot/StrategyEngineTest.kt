@@ -52,7 +52,17 @@ class StrategyEngineTest {
         assertEquals("LOSS", result.lastOutcome)
     }
 
-    @Test fun skipCountsDownOnlyOnNewPeriods() {\n        var state = EngineState(skipRemaining = 3)\n        state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state\n        assertEquals(2, state.skipRemaining)\n        state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state\n        assertEquals(2, state.skipRemaining)\n        state = StrategyEngine.onNewPeriod(state, "P2", s(Side.BIG, Side.BIG, Side.BIG)).state\n        assertEquals(1, state.skipRemaining)\n    }\n\n    @Test fun duplicatePeriodDoesNotConsumeSkipAgain() {
+    @Test fun skipCountsDownOnlyOnNewPeriods() {
+        var state = EngineState(skipRemaining = 3)
+        state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state
+        assertEquals(2, state.skipRemaining)
+        state = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG)).state
+        assertEquals(2, state.skipRemaining)
+        state = StrategyEngine.onNewPeriod(state, "P2", s(Side.BIG, Side.BIG, Side.BIG)).state
+        assertEquals(1, state.skipRemaining)
+    }
+
+    @Test fun duplicatePeriodDoesNotConsumeSkipAgain() {
         val state = EngineState(skipRemaining = 3, lastProcessedPeriod = "P1")
         val result = StrategyEngine.onNewPeriod(state, "P1", s(Side.BIG, Side.BIG, Side.BIG))
         assertEquals(3, result.state.skipRemaining)
