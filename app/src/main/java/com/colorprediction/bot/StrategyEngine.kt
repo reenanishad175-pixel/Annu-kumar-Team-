@@ -19,6 +19,7 @@ data class EngineState(
     val skipRemaining: Int = 0,
     val pausedUntilMillis: Long = 0L,
     val lastBetPeriod: String? = null,
+    val lastProcessedPeriod: String? = null,
     val lastPrediction: Side? = null,
     val lastStrategy: Strategy? = null,
     val lastOutcome: String? = null
@@ -60,17 +61,17 @@ object StrategyEngine {
 
     /** Called once for each newly confirmed result period, never for duplicate periods. */
     fun onNewPeriod(state: EngineState, period: String, lastThree: List<Side>): EngineUpdate {
-        if (period == state.lastBetPeriod) return EngineUpdate(state, status = "Waiting for a new period")
+        if (period == state.lastProcessedPeriod) return EngineUpdate(state, status = "Waiting for a new period")
         if (state.pausedUntilMillis > System.currentTimeMillis()) {
-            return EngineUpdate(state, status = "PAUSED • Level 8 loss cooldown")
+            return EngineUpdate(state.copy(lastProcessedPeriod = period), status = "PAUSED • Level 8 loss cooldown")
         }
         if (state.skipRemaining > 0) {
-            val next = state.copy(skipRemaining = state.skipRemaining - 1)
+            val next = state.copy(skipRemaining = state.skipRemaining - 1, lastProcessedPeriod = period)
             return EngineUpdate(next, status = "SKIP • ${next.skipRemaining} remaining")
         }
         val prediction = predict(lastThree)
-            ?: return EngineUpdate(state, status = "SKIP • No configured pattern")
-        return EngineUpdate(state, prediction, "PREDICTION READY")
+            ?: return EngineUpdate(state.copy(lastProcessedPeriod = period), status = "SKIP • No configured pattern")
+        return EngineUpdate(state.copy(lastProcessedPeriod = period), prediction, "PREDICTION READY")
     }
 
     /** Apply a confirmed outcome to the currently tracked bet. */
