@@ -35,7 +35,28 @@ class BdgPageParserTest {
         val parsed = BdgPageParser.parse(text)
         assertNotNull(parsed)
         assertEquals("20261105100010966", parsed!!.currentPeriod)
+        assertEquals("1 Minute", parsed.gameDuration)
         assertEquals(listOf(Side.SMALL, Side.BIG, Side.SMALL), parsed.recentOutcomes.take(3).map { it.side })
+    }
+
+    @Test fun detectsAllSupportedWinGoDurations() {
+        val history = """
+            20261105100010966
+            20261105100010965 0 Small
+            20261105100010964 6 Big
+            20261105100010963 4 Small
+        """.trimIndent()
+        val cases = listOf(
+            "Win Go 30Sec" to "30 Seconds",
+            "Win Go 1Min" to "1 Minute",
+            "Win Go 3Min" to "3 Minutes",
+            "Win Go 5Min" to "5 Minutes"
+        )
+        cases.forEach { (label, expected) ->
+            val parsed = BdgPageParser.parse("$label\n$history")
+            assertNotNull("$label should parse", parsed)
+            assertEquals(expected, parsed!!.gameDuration)
+        }
     }
 
     @Test fun refusesIncompleteOrAmbiguousPageText() {
