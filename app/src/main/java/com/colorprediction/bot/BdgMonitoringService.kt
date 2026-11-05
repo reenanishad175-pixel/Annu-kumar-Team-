@@ -73,7 +73,7 @@ class BdgMonitoringService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (monitor == null) startMonitor()
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startMonitor() {
@@ -181,6 +181,11 @@ class BdgMonitoringService : Service() {
             .putString("bdg_read_status", message)
             .putLong("bdg_read_status_at", System.currentTimeMillis())
             .apply()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
