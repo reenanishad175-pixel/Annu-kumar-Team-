@@ -23,7 +23,7 @@ object TelegramReports {
     fun prediction(context: Context, period: String, duration: String, level: Int, prediction: Prediction) {
         enqueue(
             context,
-            "PREDICTION • ${prediction.side}\nPeriod: $period\nGame: $duration\nLevel: $level",
+            "PREDICTION • ${prediction.side}\nLabel: ${prediction.strategy.title}\nPeriod: $period\nGame: $duration\nLevel: $level",
             "PREDICTION"
         )
     }
@@ -31,7 +31,7 @@ object TelegramReports {
     fun result(context: Context, period: String, duration: String, level: Int, prediction: Prediction, outcome: String) {
         enqueue(
             context,
-            "RESULT • $outcome\nPrediction: ${prediction.side}\nPeriod: $period\nGame: $duration\nLevel: $level",
+            "RESULT • $outcome\nPrediction: ${prediction.side}\nLabel: ${prediction.strategy.title}\nPeriod: $period\nGame: $duration\nLevel: $level",
             "RESULT"
         )
     }
