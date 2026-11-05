@@ -36,6 +36,7 @@ class StrategyEngineTest {
         val p3 = Prediction(Side.SMALL, Strategy.LAST_THREE_A)
         val p4 = Prediction(Side.SMALL, Strategy.LAST_THREE_B)
         assertEquals(4, StrategyEngine.onOutcome(EngineState(), "1", p1, Side.BIG, 1000L).skipRemaining)
+        assertEquals(4, StrategyEngine.onOutcome(EngineState(), "1", p1, Side.BIG, 1000L).skipTotal)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "2", p2, Side.BIG, 1000L).skipRemaining)
         assertEquals(1, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
         assertEquals(0, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
