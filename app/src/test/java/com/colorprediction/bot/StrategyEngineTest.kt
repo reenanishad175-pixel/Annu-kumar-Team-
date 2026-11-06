@@ -208,12 +208,12 @@ class StrategyEngineTest {
         assertEquals(1, first.state.skipRemaining)
         assertTrue(first.status.startsWith("CUSTOM STRATEGY ACTIVE"))
 
-        // A custom LOSS must not change the original strategy's level or
-        // extend/cancel the two-period skip window.
+        // A custom LOSS during the built-in skip window advances the level,
+        // while preserving the remaining skip-period countdown.
         state = StrategyEngine.onOutcome(
             first.state, "P1", first.prediction!!, Side.SMALL, 1000L
         )
-        assertEquals(4, state.level)
+        assertEquals(5, state.level)
         assertEquals(1, state.skipRemaining)
         assertEquals(2, state.skipTotal)
 
@@ -227,7 +227,7 @@ class StrategyEngineTest {
         state = StrategyEngine.onOutcome(
             second.state, "P2", second.prediction!!, Side.SMALL, 2000L
         )
-        assertEquals(1, state.level) // Custom WIN resets the built-in level too.
+        assertEquals(1, state.level) // Custom WIN resets the active level sequence.
         assertEquals(0, state.skipRemaining)
         assertEquals(0, state.skipTotal)
     }

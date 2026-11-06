@@ -120,17 +120,12 @@ object StrategyEngine {
         customStandalone: Boolean = false
     ): EngineState {
         val win = prediction.side == actual
-        // Custom predictions inside a built-in skip window replace that skipped
-        // prediction. A custom WIN therefore resets the waiting built-in level;
-        // a custom LOSS leaves that built-in level unchanged. Standalone custom
-        // mode owns the dashboard level and advances it on LOSS.
+        // Every settled Custom prediction counts as a level in the active
+        // sequence, whether Custom is standalone or replacing a built-in skip.
+        // WIN resets the sequence; LOSS advances it by one.
         if (prediction.strategy == Strategy.CUSTOM) {
             val customSkips = if (win) 0 else StrategyConfigStore.effectiveSkip(prefs, Strategy.CUSTOM, state.level)
-            val nextLevel = when {
-                win -> 1
-                customStandalone -> state.level + 1
-                else -> state.level
-            }
+            val nextLevel = if (win) 1 else state.level + 1
             return state.copy(
                 level = nextLevel,
                 skipRemaining = state.skipRemaining,
