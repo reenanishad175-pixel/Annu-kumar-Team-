@@ -66,6 +66,13 @@ object BdgAutomationController {
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
                     state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side)
                     saveState(prefs, state)
+                    // Arm Telegram-only pause immediately when the requested WIN is confirmed.
+                    // This closes the queue gate before any next-period prediction can be enqueued.
+                    val stopTelegramAfterWin = outcome == "WIN" &&
+                        prefs.getBoolean("stop_after_win_requested", false)
+                    if (stopTelegramAfterWin) {
+                        prefs.edit().putBoolean("telegram_predictions_paused", true).apply()
+                    }
                     TelegramReports.result(
                         context, pendingPeriod,
                         prefs.getString("game_duration", "30 Seconds").orEmpty(),
@@ -80,18 +87,18 @@ object BdgAutomationController {
                         .putString("recent_activity", "$pendingPeriod • ${prediction.side} • Label $level • $outcome")
                         .apply()
 
-                    if (outcome == "WIN" && prefs.getBoolean("stop_after_win_requested", false)) {
-                        // The stop request belongs to Telegram delivery only.
-                        // Keep the BDG reader and dashboard prediction engine alive.
+                    if (stopTelegramAfterWin) {
+                        // Do not create/enqueue another prediction in this same monitor pass.
+                        // The next pass may continue dashboard predictions; Telegram remains paused.
                         prefs.edit()
                             .putBoolean("stop_after_win_requested", false)
                             .putBoolean("predictions_stopped", false)
                             .putBoolean("telegram_predictions_paused", true)
                             .putString("current_strategy", "")
-                            .putString("bot_status", "BDG READING ACTIVE • live dashboard predictions continue")
-                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • Telegram sequence finished")
+                            .putString("bot_status", "BDG READING ACTIVE • Telegram predictions stopped after WIN")
+                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • Telegram predictions stopped")
                             .apply()
-                        return "BDG READING ACTIVE • live dashboard predictions continue"
+                        return "BDG READING ACTIVE • Telegram predictions stopped after WIN"
                     }
                 }
             }
