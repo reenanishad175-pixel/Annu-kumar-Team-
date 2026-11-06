@@ -227,7 +227,7 @@ class StrategyEngineTest {
         state = StrategyEngine.onOutcome(
             second.state, "P2", second.prediction!!, Side.SMALL, 2000L
         )
-        assertEquals(4, state.level)
+        assertEquals(1, state.level) // Custom WIN resets the built-in level too.
         assertEquals(0, state.skipRemaining)
         assertEquals(0, state.skipTotal)
     }
