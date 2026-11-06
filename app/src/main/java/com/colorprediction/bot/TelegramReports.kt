@@ -92,7 +92,8 @@ object TelegramReports {
         } ?: return
 
         val prefs = item.context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
-        if (item.label == "PREDICTION" && prefs.getBoolean("telegram_predictions_paused", false)) {
+        if ((item.label == "PREDICTION" || item.label == "SKIP") &&
+            prefs.getBoolean("telegram_predictions_paused", false)) {
             prefs.edit().putString("telegram_status", "PAUSED • Telegram predictions").apply()
             sendNext()
             return
