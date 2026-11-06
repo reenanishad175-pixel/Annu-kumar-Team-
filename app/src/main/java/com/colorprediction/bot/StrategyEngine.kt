@@ -67,7 +67,7 @@ object StrategyEngine {
         }
     }
 
-    fun onNewPeriod(state: EngineState, period: String, lastThree: List<Side>): EngineUpdate {
+    fun onNewPeriod(state: EngineState, period: String, lastThree: List<Side>, prefs: SharedPreferences? = null): EngineUpdate {
         if (period == state.lastProcessedPeriod) return EngineUpdate(state, status = "Waiting for a new period")
         if (state.lastProcessedPeriod == null) {
             return EngineUpdate(state.copy(lastProcessedPeriod = period), status = "SKIP • Initial history loaded; waiting for next period")
@@ -76,7 +76,7 @@ object StrategyEngine {
             val next = state.copy(skipRemaining = state.skipRemaining - 1, lastProcessedPeriod = period)
             return EngineUpdate(next, status = "SKIP • ${next.skipRemaining} remaining")
         }
-        val prediction = predict(lastThree)
+        val prediction = predict(lastThree, prefs, state.lastPrediction)
             ?: return EngineUpdate(state.copy(lastProcessedPeriod = period), status = "SKIP • No configured pattern")
         return EngineUpdate(state.copy(lastProcessedPeriod = period), prediction, "PREDICTION READY")
     }
