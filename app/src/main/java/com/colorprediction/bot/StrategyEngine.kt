@@ -71,7 +71,7 @@ object StrategyEngine {
         )
         val skips = when (prediction.strategy) {
             Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE -> 2
+            Strategy.ONE_BY_ONE -> 1
             Strategy.LAST_THREE_A, Strategy.LAST_THREE_B -> 0
         }
         // No Level 8 stop or timed cooldown: the monitor keeps running without a cap.
