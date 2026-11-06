@@ -41,6 +41,8 @@ object TelegramReports {
     }
 
     fun skip(context: Context, period: String, remaining: Int, level: Int) {
+        val prefs = context.applicationContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("telegram_predictions_paused", false)) return
         enqueue(context, "SKIP • Period: $period\nLevel: $level\nRemaining: $remaining", "SKIP")
     }
 
