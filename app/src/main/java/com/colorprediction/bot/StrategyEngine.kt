@@ -110,6 +110,19 @@ object StrategyEngine {
         prefs: SharedPreferences? = null
     ): EngineState {
         val win = prediction.side == actual
+        // A custom prediction fills one of the built-in strategy's already
+        // scheduled skip periods. Its result must not reset or extend that
+        // original skip window or alter the original strategy's level.
+        if (prediction.strategy == Strategy.CUSTOM && state.skipTotal > 0) {
+            return state.copy(
+                skipRemaining = state.skipRemaining,
+                skipTotal = if (state.skipRemaining > 0) state.skipTotal else 0,
+                lastBetPeriod = period,
+                lastPrediction = prediction.side,
+                lastStrategy = Strategy.CUSTOM,
+                lastOutcome = if (win) "WIN" else "LOSS"
+            )
+        }
         if (win) return state.copy(
             level = 1, skipRemaining = 0, skipTotal = 0, pausedUntilMillis = 0L,
             lastBetPeriod = period, lastPrediction = prediction.side,
