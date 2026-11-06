@@ -188,7 +188,9 @@ object BdgAutomationController {
                     .putInt("current_level", state.level)
                     .putString("bot_status", update.status)
                     .apply()
-                TelegramReports.skip(context, snapshot.currentPeriod, state.skipRemaining, state.level)
+                if (!update.status.startsWith("CUSTOM STRATEGY")) {
+                    TelegramReports.skip(context, snapshot.currentPeriod, state.skipRemaining, state.level)
+                }
             }
         }
         return prefs.getString("bot_status", "BDG DATA DETECTED").orEmpty()
