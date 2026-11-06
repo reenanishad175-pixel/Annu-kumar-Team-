@@ -11,7 +11,10 @@ data class StrategyConfig(
     val mode: StrategyMode,
     val skipOnLoss: Int?,
     val startingSide: Side,
-    val rules: List<StrategyRule>
+    val rules: List<StrategyRule>,
+    val skipAfterLevel: Int? = null,
+    val patternLength: Int = 3,
+    val reverseOnLoss: Boolean = false
 )
 
 object StrategyConfigStore {
@@ -52,14 +55,17 @@ object StrategyConfigStore {
             val mode = runCatching { StrategyMode.valueOf(json.optString("mode", "PATTERN")) }.getOrDefault(StrategyMode.PATTERN)
             val skip = if (json.has("skipOnLoss") && !json.isNull("skipOnLoss")) json.optInt("skipOnLoss").coerceIn(0, 50) else null
             val starting = runCatching { Side.valueOf(json.optString("startingSide", "BIG")) }.getOrDefault(Side.BIG)
+            val skipAfterLevel = if (json.has("skipAfterLevel") && !json.isNull("skipAfterLevel")) json.optInt("skipAfterLevel").coerceIn(1, 50) else null
+            val patternLength = if (json.optInt("patternLength", 3) == 5) 5 else 3
+            val reverseOnLoss = json.optBoolean("reverseOnLoss", false)
             val rulesJson = json.optJSONArray("rules") ?: JSONArray()
             val rules = (0 until rulesJson.length()).mapNotNull { i ->
                 val item = rulesJson.optJSONObject(i) ?: return@mapNotNull null
                 val pattern = item.optString("pattern", "").uppercase().filter { it == 'B' || it == 'S' }
                 val side = runCatching { Side.valueOf(item.optString("prediction", "BIG")) }.getOrNull()
-                if (pattern.length == 3 && side != null) StrategyRule(pattern, side) else null
-            }.take(3)
-            StrategyConfig(mode, skip, starting, rules)
+                if (pattern.length == patternLength && side != null) StrategyRule(pattern, side) else null
+            }.take(if (strategy == Strategy.CUSTOM) 5 else 3)
+            StrategyConfig(mode, skip, starting, rules, skipAfterLevel, patternLength, reverseOnLoss)
         }.getOrDefault(defaults(strategy))
     }
 
@@ -68,9 +74,12 @@ object StrategyConfigStore {
             .put("mode", config.mode.name)
             .put("skipOnLoss", config.skipOnLoss?.coerceIn(0, 50) ?: JSONObject.NULL)
             .put("startingSide", config.startingSide.name)
+            .put("skipAfterLevel", config.skipAfterLevel?.coerceIn(1, 50) ?: JSONObject.NULL)
+            .put("patternLength", if (strategy == Strategy.CUSTOM && config.patternLength == 5) 5 else 3)
+            .put("reverseOnLoss", config.reverseOnLoss)
         val rules = JSONArray()
-        config.rules.take(3).forEach { rule ->
-            if (rule.pattern.length == 3) {
+        config.rules.take(if (strategy == Strategy.CUSTOM) 5 else 3).forEach { rule ->
+            if (rule.pattern.length == config.patternLength) {
                 rules.put(JSONObject().put("pattern", rule.pattern).put("prediction", rule.prediction.name))
             }
         }
@@ -79,6 +88,7 @@ object StrategyConfigStore {
     }
 
     private const val CUSTOM_ENABLED_KEY = "custom_strategy_enabled"
+    private const val STRATEGY_ENABLED_PREFIX = "strategy_enabled_"
 
     fun isCustomEnabled(prefs: SharedPreferences): Boolean =
         prefs.getBoolean(CUSTOM_ENABLED_KEY, false)
@@ -86,6 +96,18 @@ object StrategyConfigStore {
     fun setCustomEnabled(prefs: SharedPreferences, enabled: Boolean) {
         prefs.edit().putBoolean(CUSTOM_ENABLED_KEY, enabled).apply()
     }
+
+    fun isStrategyEnabled(prefs: SharedPreferences?, strategy: Strategy): Boolean =
+        if (strategy == Strategy.CUSTOM) prefs?.getBoolean(CUSTOM_ENABLED_KEY, false) ?: false
+        else prefs?.getBoolean(STRATEGY_ENABLED_PREFIX + strategy.name, true) ?: true
+
+    fun setStrategyEnabled(prefs: SharedPreferences, strategy: Strategy, enabled: Boolean) {
+        if (strategy == Strategy.CUSTOM) setCustomEnabled(prefs, enabled)
+        else prefs.edit().putBoolean(STRATEGY_ENABLED_PREFIX + strategy.name, enabled).apply()
+    }
+
+    fun hasAnyBuiltInEnabled(prefs: SharedPreferences?): Boolean =
+        listOf(Strategy.TREND_BASE, Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A, Strategy.LAST_THREE_B).any { isStrategyEnabled(prefs, it) }
 
     fun defaultSkipLabel(strategy: Strategy): String = when (strategy) {
         Strategy.TREND_BASE -> "5 (Level 2+)"
@@ -95,7 +117,7 @@ object StrategyConfigStore {
 
     fun effectiveSkip(prefs: SharedPreferences?, strategy: Strategy, level: Int): Int {
         val config = if (prefs == null) defaults(strategy) else load(prefs, strategy)
-        if (config.skipOnLoss != null) return config.skipOnLoss
+        if (config.skipOnLoss != null) return if (config.skipAfterLevel == null || level >= config.skipAfterLevel) config.skipOnLoss else 0
         return when (strategy) {
             Strategy.TREND_BASE -> if (level >= 2) 5 else 0
             Strategy.ONE_BY_ONE -> 1
