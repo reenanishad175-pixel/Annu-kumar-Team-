@@ -131,12 +131,21 @@ object StrategyEngine {
             }
             return EngineUpdate(next, status = "SKIP • ${remaining} remaining")
         }
-        if (state.customSkipRemaining > 0) {
-            val next = state.copy(customSkipRemaining = state.customSkipRemaining - 1, lastProcessedPeriod = period)
-            return EngineUpdate(next, status = "CUSTOM SKIP • ${next.customSkipRemaining} remaining")
-        }
         val builtInEnabled = StrategyConfigStore.hasAnyBuiltInEnabled(prefs)
         val customEnabled = customStrategyEnabled || (prefs != null && StrategyConfigStore.isStrategyEnabled(prefs, Strategy.CUSTOM))
+        if (state.customSkipRemaining > 0) {
+            val next = state.copy(
+                customSkipRemaining = state.customSkipRemaining - 1,
+                lastProcessedPeriod = period
+            )
+            // A Custom-only skip must not switch off the two built-ins.
+            // If built-ins are enabled, let their normal predictor run in
+            // this period. If Custom is standalone, its own skip is a real skip.
+            if (!builtInEnabled) {
+                return EngineUpdate(next, status = "CUSTOM SKIP • ${next.customSkipRemaining} remaining")
+            }
+            state = next
+        }
         val prediction = if (!builtInEnabled && customEnabled) {
             val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM) else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
             predictCustom(lastThree, config, if (state.lastStrategy == Strategy.CUSTOM) state.lastPrediction else null, state.lastStrategy == Strategy.CUSTOM && state.lastOutcome == "LOSS")

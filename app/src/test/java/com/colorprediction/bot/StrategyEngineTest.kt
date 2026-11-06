@@ -212,6 +212,40 @@ class StrategyEngineTest {
         assertEquals("WIN", afterWin.lastOutcome)
     }
 
+    @Test fun customOwnSkipDoesNotDisableOneByOneBuiltIn() {
+        val state = EngineState(
+            customSkipRemaining = 1,
+            lastProcessedPeriod = "P0",
+            lastStrategy = Strategy.CUSTOM,
+            lastPrediction = Side.BIG,
+            lastOutcome = "LOSS"
+        )
+        val result = StrategyEngine.onNewPeriod(
+            state, "P1", s(Side.BIG, Side.SMALL, Side.BIG),
+            customStrategyEnabled = true,
+            customConfig = StrategyConfigStore.defaults(Strategy.CUSTOM)
+        )
+        assertEquals(Prediction(Side.SMALL, Strategy.ONE_BY_ONE), result.prediction)
+        assertEquals(0, result.state.customSkipRemaining)
+    }
+
+    @Test fun customOwnSkipDoesNotDisableFollowUpBuiltIn() {
+        val state = EngineState(
+            customSkipRemaining = 1,
+            lastProcessedPeriod = "P0",
+            lastStrategy = Strategy.CUSTOM,
+            lastPrediction = Side.BIG,
+            lastOutcome = "LOSS"
+        )
+        val result = StrategyEngine.onNewPeriod(
+            state, "P1", s(Side.BIG, Side.BIG, Side.SMALL),
+            customStrategyEnabled = true,
+            customConfig = StrategyConfigStore.defaults(Strategy.CUSTOM)
+        )
+        assertEquals(Prediction(Side.BIG, Strategy.FOLLOW_UP), result.prediction)
+        assertEquals(0, result.state.customSkipRemaining)
+    }
+
     @Test fun disabledCustomStrategyKeepsNormalSkipBehavior() {
         val result = StrategyEngine.onNewPeriod(
             EngineState(skipRemaining = 2, skipTotal = 2, lastProcessedPeriod = "P0"),
