@@ -66,7 +66,11 @@ object BdgAutomationController {
                     val prediction = Prediction(side, strategy)
                     val level = prefs.getInt("pending_level", state.level)
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
-                    state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side, prefs = prefs)
+                    state = StrategyEngine.onOutcome(
+                        state, pendingPeriod, prediction, actual.side,
+                        prefs = prefs,
+                        customStandalone = strategy == Strategy.CUSTOM && !StrategyConfigStore.hasAnyBuiltInEnabled(prefs)
+                    )
                     saveState(prefs, state)
                     val countsAsTelegramPrediction = prefs.getBoolean("pending_telegram_bin", false)
                     val winsBefore = prefs.getInt("telegram_wins_completed", 0)

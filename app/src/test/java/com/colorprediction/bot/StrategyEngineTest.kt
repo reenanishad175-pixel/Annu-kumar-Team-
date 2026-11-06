@@ -232,6 +232,23 @@ class StrategyEngineTest {
         assertEquals(0, state.skipTotal)
     }
 
+    @Test fun standaloneCustomLossAdvancesDashboardLevelAndWinResetsIt() {
+        val customPrediction = Prediction(Side.BIG, Strategy.CUSTOM)
+        val afterLoss = StrategyEngine.onOutcome(
+            EngineState(level = 3), "C1", customPrediction, Side.SMALL,
+            now = 1000L, customStandalone = true
+        )
+        assertEquals(4, afterLoss.level)
+        assertEquals("LOSS", afterLoss.lastOutcome)
+
+        val afterWin = StrategyEngine.onOutcome(
+            afterLoss, "C2", customPrediction, Side.BIG,
+            now = 2000L, customStandalone = true
+        )
+        assertEquals(1, afterWin.level)
+        assertEquals("WIN", afterWin.lastOutcome)
+    }
+
     @Test fun disabledCustomStrategyKeepsNormalSkipBehavior() {
         val result = StrategyEngine.onNewPeriod(
             EngineState(skipRemaining = 2, skipTotal = 2, lastProcessedPeriod = "P0"),

@@ -116,7 +116,8 @@ object StrategyEngine {
         prediction: Prediction,
         actual: Side,
         now: Long = System.currentTimeMillis(),
-        prefs: SharedPreferences? = null
+        prefs: SharedPreferences? = null,
+        customStandalone: Boolean = false
     ): EngineState {
         val win = prediction.side == actual
         // A custom prediction fills one of the built-in strategy's already
@@ -124,7 +125,12 @@ object StrategyEngine {
         // original skip window or alter the original strategy's level.
         if (prediction.strategy == Strategy.CUSTOM) {
             val customSkips = if (win) 0 else StrategyConfigStore.effectiveSkip(prefs, Strategy.CUSTOM, state.level)
+            // Standalone custom runs maintain their own level label: LOSS advances
+            // it and WIN resets it. When custom only fills a built-in skip window,
+            // the built-in strategy's level remains untouched.
+            val nextLevel = if (!customStandalone) state.level else if (win) 1 else state.level + 1
             return state.copy(
+                level = nextLevel,
                 skipRemaining = state.skipRemaining,
                 skipTotal = if (state.skipRemaining > 0) state.skipTotal else 0,
                 customSkipRemaining = customSkips,
