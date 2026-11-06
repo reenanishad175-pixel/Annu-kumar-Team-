@@ -372,13 +372,11 @@ class MainActivity : Activity() {
     }
     private fun showStrategyChooser() {
         val strategies = listOf(
-            Strategy.TREND_BASE,
             Strategy.ONE_BY_ONE,
-            Strategy.LAST_THREE_B,
-            Strategy.LAST_THREE_A,
+            Strategy.FOLLOW_UP,
             Strategy.CUSTOM
         )
-        val labels = arrayOf("STRATEGY 1", "STRATEGY 2", "STRATEGY 3", "STRATEGY 4", "CUSTOM STRATEGY")
+        val labels = arrayOf("ONE-BY-ONE PATTERN", "FOLLOW UP", "CUSTOM STRATEGY")
         AlertDialog.Builder(this)
             .setTitle("EDIT STRATEGY")
             .setItems(labels) { _, which -> showStrategyEditor(strategies[which]) }
@@ -397,7 +395,7 @@ class MainActivity : Activity() {
             setTextColor(Color.BLACK); isChecked = StrategyConfigStore.isStrategyEnabled(prefs, strategy)
         }
         content.addView(enabled)
-        if (strategy == Strategy.CUSTOM) content.addView(text("चारों पुरानी OFF = Custom अकेली चलेगी। कोई पुरानी ON = Custom केवल उसके SKIP PERIOD में चलेगी।", 12f, Color.DKGRAY))
+        if (strategy == Strategy.CUSTOM) content.addView(text("दोनों built-in OFF = Custom अकेली चलेगी। कोई built-in ON = Custom उसके SKIP PERIOD में चलेगी।", 12f, Color.DKGRAY))
         val modeSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("PATTERN MATCHING", "ONE BIG / ONE SMALL", "FOLLOW LATEST RESULT"))
             setSelection(when (config.mode) { StrategyMode.PATTERN -> 0; StrategyMode.ALTERNATE -> 1; StrategyMode.FOLLOW_LAST -> 2 })
@@ -511,7 +509,7 @@ class MainActivity : Activity() {
                     }
                 }
                 StrategyConfigStore.save(prefs, strategy, StrategyConfig(
-                    mode = if (strategy == Strategy.CUSTOM) mode else StrategyMode.PATTERN,
+                    mode = if (strategy == Strategy.CUSTOM) mode else if (strategy == Strategy.FOLLOW_UP) StrategyMode.FOLLOW_LAST else StrategyMode.PATTERN,
                     skipOnLoss = skip,
                     startingSide = if (strategy == Strategy.CUSTOM && mode == StrategyMode.ALTERNATE && starting.selectedItemPosition == 1) Side.SMALL else Side.BIG,
                     rules = rules, skipAfterLevel = threshold,

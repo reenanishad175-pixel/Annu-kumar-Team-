@@ -23,26 +23,11 @@ object StrategyConfigStore {
 
     fun defaults(strategy: Strategy): StrategyConfig {
         val rules = when (strategy) {
-            Strategy.TREND_BASE -> listOf(
-                StrategyRule("SSS", Side.SMALL),
-                StrategyRule("BBB", Side.BIG)
-            )
-            Strategy.ONE_BY_ONE -> listOf(
-                StrategyRule("BSB", Side.SMALL),
-                StrategyRule("SBS", Side.BIG)
-            )
-            Strategy.LAST_THREE_B -> listOf(
-                StrategyRule("BBS", Side.SMALL),
-                StrategyRule("SSB", Side.BIG)
-            )
-            Strategy.LAST_THREE_A -> listOf(
-                StrategyRule("SBB", Side.SMALL),
-                StrategyRule("BSS", Side.BIG)
-            )
             Strategy.CUSTOM -> emptyList()
+            else -> emptyList()
         }
         return StrategyConfig(
-            mode = StrategyMode.PATTERN,
+            mode = if (strategy == Strategy.FOLLOW_UP) StrategyMode.FOLLOW_LAST else StrategyMode.PATTERN,
             skipOnLoss = null,
             startingSide = Side.BIG,
             rules = rules,
@@ -112,12 +97,11 @@ object StrategyConfigStore {
     }
 
     fun hasAnyBuiltInEnabled(prefs: SharedPreferences?): Boolean =
-        listOf(Strategy.TREND_BASE, Strategy.ONE_BY_ONE, Strategy.LAST_THREE_A, Strategy.LAST_THREE_B).any { isStrategyEnabled(prefs, it) }
+        listOf(Strategy.ONE_BY_ONE, Strategy.FOLLOW_UP).any { isStrategyEnabled(prefs, it) }
 
     fun defaultSkipLabel(strategy: Strategy): String = when (strategy) {
         Strategy.TREND_BASE -> "5 (Level 2+)"
-        Strategy.ONE_BY_ONE -> "1"
-        Strategy.LAST_THREE_A, Strategy.LAST_THREE_B, Strategy.CUSTOM -> "0"
+        Strategy.ONE_BY_ONE, Strategy.FOLLOW_UP, Strategy.LAST_THREE_A, Strategy.LAST_THREE_B, Strategy.CUSTOM -> "0"
     }
 
     fun effectiveSkip(prefs: SharedPreferences?, strategy: Strategy, level: Int): Int {
@@ -125,8 +109,7 @@ object StrategyConfigStore {
         if (config.skipOnLoss != null) return if (strategy == Strategy.CUSTOM || config.skipAfterLevel == null || level >= config.skipAfterLevel) config.skipOnLoss else 0
         return when (strategy) {
             Strategy.TREND_BASE -> if (level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE -> 1
-            Strategy.LAST_THREE_A, Strategy.LAST_THREE_B, Strategy.CUSTOM -> 0
+            Strategy.ONE_BY_ONE, Strategy.FOLLOW_UP, Strategy.LAST_THREE_A, Strategy.LAST_THREE_B, Strategy.CUSTOM -> 0
         }
     }
 }

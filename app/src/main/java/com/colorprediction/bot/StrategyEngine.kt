@@ -5,11 +5,13 @@ import android.content.SharedPreferences
 /** Pattern decision engine. BDG history is passed newest-first. */
 enum class Side { BIG, SMALL }
 enum class Strategy(val title: String) {
-    TREND_BASE("Strategy 1"),
-    ONE_BY_ONE("Strategy 2"),
-    LAST_THREE_A("Strategy 4"),
-    LAST_THREE_B("Strategy 3"),
-    CUSTOM("Custom Strategy")
+    ONE_BY_ONE("One-by-One Pattern"),
+    FOLLOW_UP("Follow Up"),
+    CUSTOM("Custom Strategy"),
+    // Retained only so preferences saved by older app versions can be read safely.
+    TREND_BASE("Legacy Strategy 1"),
+    LAST_THREE_A("Legacy Strategy 4"),
+    LAST_THREE_B("Legacy Strategy 3")
 }
 
 data class Prediction(val side: Side, val strategy: Strategy)
@@ -38,17 +40,21 @@ object StrategyEngine {
 
     fun predict(lastThree: List<Side>): Prediction? = predict(lastThree, null, null)
 
-    /** Predict using the four established strategies only. */
+    /** One-by-One takes priority when the last three results alternate; Follow Up is the fallback. */
     fun predict(lastThree: List<Side>, prefs: SharedPreferences?, lastPrediction: Side?, currentLevel: Int = 1): Prediction? {
         if (lastThree.size != 3) return null
-        val pattern = lastThree.joinToString("") { if (it == Side.BIG) "B" else "S" }
-        val builtIns = listOf(Strategy.TREND_BASE, Strategy.ONE_BY_ONE, Strategy.LAST_THREE_B, Strategy.LAST_THREE_A)
-        for (strategy in builtIns) {
-            if (!StrategyConfigStore.isStrategyEnabled(prefs, strategy)) continue
-            val config = if (prefs == null) StrategyConfigStore.defaults(strategy) else StrategyConfigStore.load(prefs, strategy)
-            if (currentLevel > config.levelCount) continue
-            val rule = config.rules.firstOrNull { it.pattern == pattern }
-            if (rule != null) return Prediction(rule.prediction, strategy)
+        val oneByOneEnabled = StrategyConfigStore.isStrategyEnabled(prefs, Strategy.ONE_BY_ONE)
+        val oneByOneConfig = if (prefs == null) StrategyConfigStore.defaults(Strategy.ONE_BY_ONE) else StrategyConfigStore.load(prefs, Strategy.ONE_BY_ONE)
+        if (oneByOneEnabled && currentLevel <= oneByOneConfig.levelCount &&
+            lastThree[0] != lastThree[1] && lastThree[1] != lastThree[2]) {
+            val nextSide = if (lastThree[0] == Side.BIG) Side.SMALL else Side.BIG
+            return Prediction(nextSide, Strategy.ONE_BY_ONE)
+        }
+
+        val followEnabled = StrategyConfigStore.isStrategyEnabled(prefs, Strategy.FOLLOW_UP)
+        val followConfig = if (prefs == null) StrategyConfigStore.defaults(Strategy.FOLLOW_UP) else StrategyConfigStore.load(prefs, Strategy.FOLLOW_UP)
+        if (followEnabled && currentLevel <= followConfig.levelCount) {
+            return Prediction(lastThree.first(), Strategy.FOLLOW_UP)
         }
         return null
     }
