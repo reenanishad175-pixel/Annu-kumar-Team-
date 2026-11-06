@@ -394,7 +394,7 @@ class MainActivity : Activity() {
         content.addView(text(if (strategy == Strategy.CUSTOM) "CUSTOM STRATEGY" else strategy.title.uppercase(), 18f, Color.CYAN, true))
         val enabled = Switch(this).apply {
             text = if (strategy == Strategy.CUSTOM) "ENABLE CUSTOM (SKIP REPLACEMENT / STANDALONE)" else "ENABLE THIS STRATEGY"
-            setTextColor(Color.WHITE); isChecked = StrategyConfigStore.isStrategyEnabled(prefs, strategy)
+            setTextColor(Color.DKGRAY); isChecked = StrategyConfigStore.isStrategyEnabled(prefs, strategy)
         }
         content.addView(enabled)
         if (strategy == Strategy.CUSTOM) content.addView(text("चारों पुरानी strategies OFF हों तो Custom अकेली चलेगी।", 11f, Color.LTGRAY))
@@ -435,7 +435,7 @@ class MainActivity : Activity() {
                 hint = if (config.patternLength == 5 && strategy == Strategy.CUSTOM) "उदा. BSBBS" else "उदा. BSB"
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                 filters = arrayOf(android.text.InputFilter.LengthFilter(if (strategy == Strategy.CUSTOM) 5 else 3), android.text.InputFilter.AllCaps())
-                setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); setText(config.rules.getOrNull(index)?.pattern.orEmpty())
+                setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.rules.getOrNull(index)?.pattern.orEmpty())
             }
             val side = Spinner(this).apply {
                 adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
@@ -448,7 +448,7 @@ class MainActivity : Activity() {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
             setSelection(if (config.startingSide == Side.SMALL) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.WHITE, true)); content.addView(starting)
+        content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting)
         val dialog = AlertDialog.Builder(this).setTitle("STRATEGY SETTINGS").setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
