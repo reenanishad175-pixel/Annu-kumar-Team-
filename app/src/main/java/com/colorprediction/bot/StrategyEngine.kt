@@ -88,7 +88,7 @@ object StrategyEngine {
             if (customStrategyEnabled) {
                 val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM)
                     else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
-                val customPrediction = predictCustom(lastThree, config, state.lastPrediction)
+                val customPrediction = predictCustom(lastThree, config, if (state.lastStrategy == Strategy.CUSTOM) state.lastPrediction else null)
                 if (customPrediction != null) {
                     return EngineUpdate(next, customPrediction, "CUSTOM STRATEGY ACTIVE • ${remaining} SKIP PERIODS LEFT")
                 }
