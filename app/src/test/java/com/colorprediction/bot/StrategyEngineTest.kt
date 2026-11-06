@@ -30,57 +30,8 @@ class StrategyEngineTest {
         )
     }
 
-    @Test fun allEightConfiguredPatternsMatchExactly() {
-        assertEquals(Prediction(Side.SMALL, Strategy.TREND_BASE), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.SMALL)))
-        assertEquals(Prediction(Side.BIG, Strategy.TREND_BASE), StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.BIG)))
-        assertEquals(Prediction(Side.SMALL, Strategy.ONE_BY_ONE), StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.BIG)))
-        assertEquals(Prediction(Side.BIG, Strategy.ONE_BY_ONE), StrategyEngine.predict(s(Side.SMALL, Side.BIG, Side.SMALL)))
-        assertEquals(Prediction(Side.SMALL, Strategy.LAST_THREE_A), StrategyEngine.predict(s(Side.SMALL, Side.BIG, Side.BIG)))
-        assertEquals(Prediction(Side.BIG, Strategy.LAST_THREE_A), StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.SMALL)))
-        assertEquals(Prediction(Side.SMALL, Strategy.LAST_THREE_B), StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL)))
-        assertEquals(Prediction(Side.BIG, Strategy.LAST_THREE_B), StrategyEngine.predict(s(Side.SMALL, Side.SMALL, Side.BIG)))
-    }
 
-    @Test fun newestFirstHistoryKeepsAllFourPatternsInTheirConfirmedStrategies() {
-        // History rows are newest-first. Do not reverse them: the displayed
-        // three-line pattern must map to the same strategy the user specified.
-        val strategy3a = StrategyEngine.predict(
-            StrategyEngine.patternFromRecentResults(s(Side.SMALL, Side.SMALL, Side.BIG, Side.BIG, Side.SMALL))
-        )!!
-        assertEquals(Strategy.LAST_THREE_B, strategy3a.strategy)
-        assertEquals("Strategy 3", strategy3a.strategy.title)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P1", strategy3a, Side.SMALL, 1000L).skipRemaining)
 
-        val strategy3b = StrategyEngine.predict(
-            StrategyEngine.patternFromRecentResults(s(Side.BIG, Side.BIG, Side.SMALL, Side.SMALL, Side.BIG))
-        )!!
-        assertEquals(Strategy.LAST_THREE_B, strategy3b.strategy)
-        assertEquals("Strategy 3", strategy3b.strategy.title)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P2", strategy3b, Side.BIG, 1000L).skipRemaining)
-
-        val strategy4a = StrategyEngine.predict(
-            StrategyEngine.patternFromRecentResults(s(Side.SMALL, Side.BIG, Side.BIG, Side.BIG, Side.SMALL))
-        )!!
-        assertEquals(Strategy.LAST_THREE_A, strategy4a.strategy)
-        assertEquals("Strategy 4", strategy4a.strategy.title)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P3", strategy4a, Side.BIG, 1000L).skipRemaining)
-
-        val strategy4b = StrategyEngine.predict(
-            StrategyEngine.patternFromRecentResults(s(Side.BIG, Side.SMALL, Side.SMALL, Side.SMALL, Side.BIG))
-        )!!
-        assertEquals(Strategy.LAST_THREE_A, strategy4b.strategy)
-        assertEquals("Strategy 4", strategy4b.strategy.title)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "P4", strategy4b, Side.SMALL, 1000L).skipRemaining)
-    }
-
-    @Test fun dashboardPatternNumbersMatchTheirSkipRules() {
-        val patternA = StrategyEngine.predict(s(Side.SMALL, Side.BIG, Side.BIG))!!
-        val patternB = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL))!!
-        assertEquals("Strategy 4", patternA.strategy.title)
-        assertEquals("Strategy 3", patternB.strategy.title)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "A", patternA, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "B", patternB, Side.BIG, 1000L).skipRemaining)
-    }
 
     @Test fun changingGameDurationStartsFreshAtLatestPeriod() {
         val reset = StrategyEngine.resetForGameDuration("NEW_GAME_PERIOD")
@@ -133,32 +84,6 @@ class StrategyEngineTest {
         assertEquals("WIN", result.lastOutcome)
     }
 
-    @Test fun lossAppliesStrategySpecificSkip() {
-        val p1 = Prediction(Side.SMALL, Strategy.TREND_BASE)
-        val p2 = Prediction(Side.SMALL, Strategy.ONE_BY_ONE)
-        val p3 = Prediction(Side.SMALL, Strategy.LAST_THREE_A)
-        val p4 = Prediction(Side.SMALL, Strategy.LAST_THREE_B)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 1), "1", p1, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 1), "1", p1, Side.BIG, 1000L).skipTotal)
-        assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipRemaining)
-        assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 2), "1", p1, Side.BIG, 1000L).skipTotal)
-        assertEquals(5, StrategyEngine.onOutcome(EngineState(level = 8), "1", p1, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(level = 1), "2", p2, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(level = 2), "2b", p2, Side.BIG, 1000L).skipRemaining)
-        assertEquals(1, StrategyEngine.onOutcome(EngineState(level = 5), "2c", p2, Side.BIG, 1000L).skipRemaining)
-        val oneSkip = StrategyEngine.onOutcome(EngineState(level = 3), "2d", p2, Side.BIG, 1000L)
-        assertEquals(1, oneSkip.skipRemaining)
-        val afterOnePeriod = StrategyEngine.onNewPeriod(oneSkip.copy(lastProcessedPeriod = "2d"), "2e", s(Side.BIG, Side.BIG, Side.BIG))
-        assertNull(afterOnePeriod.prediction)
-        assertEquals(0, afterOnePeriod.state.skipRemaining)
-        val followingPeriod = StrategyEngine.onNewPeriod(afterOnePeriod.state, "2f", s(Side.BIG, Side.BIG, Side.BIG))
-        assertNotNull(followingPeriod.prediction)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "3", p3, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(), "4", p4, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 2), "5", p4, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 8), "6", p3, Side.BIG, 1000L).skipRemaining)
-        assertEquals(0, StrategyEngine.onOutcome(EngineState(level = 8), "7", p4, Side.BIG, 1000L).skipRemaining)
-    }
 
     @Test fun levelEightLossDoesNotPauseOrCapPredictions() {
         val result = StrategyEngine.onOutcome(
@@ -282,6 +207,35 @@ class StrategyEngineTest {
         assertNull(unmatched.prediction)
         assertTrue(unmatched.status.startsWith("CUSTOM STRATEGY"))
         assertEquals(0, unmatched.state.skipRemaining)
+    }
+
+
+    @Test fun builtInsUseOneByOneThenFollowUpFallback() {
+        val oneByOne = StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.BIG))!!
+        assertEquals(Side.SMALL, oneByOne.side)
+        assertEquals(Strategy.ONE_BY_ONE, oneByOne.strategy)
+
+        val followUp = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL))!!
+        assertEquals(Side.BIG, followUp.side)
+        assertEquals(Strategy.FOLLOW_UP, followUp.strategy)
+    }
+
+    @Test fun oneByOneLossHandsNextPredictionToFollowUp() {
+        val first = StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.BIG))!!
+        assertEquals(Strategy.ONE_BY_ONE, first.strategy)
+        val afterLoss = StrategyEngine.onOutcome(
+            EngineState(), "P1", first, Side.BIG, 1000L
+        )
+        val next = StrategyEngine.predict(s(Side.BIG, Side.BIG, Side.SMALL), null, afterLoss.lastPrediction, afterLoss.level)!!
+        assertEquals(Strategy.FOLLOW_UP, next.strategy)
+        assertEquals(Side.BIG, next.side)
+    }
+
+    @Test fun replacementBuiltInsDoNotInheritLegacySkipDefaults() {
+        assertEquals(0, StrategyConfigStore.effectiveSkip(null, Strategy.ONE_BY_ONE, 1))
+        assertEquals(0, StrategyConfigStore.effectiveSkip(null, Strategy.FOLLOW_UP, 1))
+        assertEquals(0, StrategyConfigStore.effectiveSkip(null, Strategy.ONE_BY_ONE, 8))
+        assertEquals(0, StrategyConfigStore.effectiveSkip(null, Strategy.FOLLOW_UP, 8))
     }
 
 }
