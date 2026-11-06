@@ -127,38 +127,6 @@ class MainActivity : Activity() {
         messageColumn.addView(telegramStatus, LinearLayout.LayoutParams(-1, 0, 1f))
         messageColumn.addView(liveReadMessage, LinearLayout.LayoutParams(-1, 0, 1f))
         telegramBar.addView(messageColumn, LinearLayout.LayoutParams(0, dp(54), 1f))
-        val stopButton = TextView(this).apply {
-            text = "■"
-            textSize = 17f
-            setTextColor(Color.rgb(185, 35, 35))
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.rgb(255, 230, 230))
-            contentDescription = "Stop predictions after the current sequence gets a WIN"
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                prefs.edit()
-                    .putBoolean("stop_after_win_requested", true)
-                    .putBoolean("predictions_stopped", false)
-                    .putBoolean("telegram_predictions_paused", false)
-                    .putString("bot_status", "STOP REQUESTED • continuing until WIN")
-                    .putString("telegram_status", "STOP AFTER WIN • current levels continue")
-                    .putString("recent_activity", "Stop requested • current sequence will finish on WIN")
-                    .apply()
-                Toast.makeText(
-                    this@MainActivity,
-                    "Stop requested • predictions continue until WIN; dashboard stays active",
-                    Toast.LENGTH_LONG
-                ).show()
-                refreshDashboard("STOP AFTER WIN • current sequence continues")
-            }
-        }
-        val stopParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
-            leftMargin = dp(10)
-            rightMargin = dp(14)
-        }
-        telegramBar.addView(stopButton, stopParams)
-
         val startButton = TextView(this).apply {
             text = "▶"
             textSize = 19f
@@ -173,6 +141,9 @@ class MainActivity : Activity() {
                     .putBoolean("predictions_stopped", false)
                     .putBoolean("stop_after_win_requested", false)
                     .putBoolean("telegram_predictions_paused", false)
+                    .putInt("telegram_bins_started", 0)
+                    .putInt("telegram_bins_completed", 0)
+                    .putBoolean("pending_telegram_bin", false)
                     .putString("current_prediction", "WAITING")
                     .putString("bot_status", "START REQUESTED • waiting for next BDG period")
                     .putString("recent_activity", "Prediction monitoring restarted")
