@@ -85,13 +85,13 @@ class StrategyEngineTest {
     }
 
 
-    @Test fun levelEightLossDoesNotPauseOrCapPredictions() {
+    @Test fun levelEightLossResetsToLevelOne() {
         val result = StrategyEngine.onOutcome(
             EngineState(level = 8), "P8",
             Prediction(Side.BIG, Strategy.ONE_BY_ONE), Side.SMALL, 10_000L
         )
         assertEquals(0L, result.pausedUntilMillis)
-        assertEquals(9, result.level)
+        assertEquals(1, result.level)
         assertEquals("LOSS", result.lastOutcome)
     }
 

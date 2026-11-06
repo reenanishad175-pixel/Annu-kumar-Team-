@@ -40,10 +40,10 @@ object StrategyConfigStore {
             val mode = runCatching { StrategyMode.valueOf(json.optString("mode", "PATTERN")) }.getOrDefault(StrategyMode.PATTERN)
             val skip = if (json.has("skipOnLoss") && !json.isNull("skipOnLoss")) json.optInt("skipOnLoss").coerceIn(0, 50) else null
             val starting = runCatching { Side.valueOf(json.optString("startingSide", "BIG")) }.getOrDefault(Side.BIG)
-            val skipAfterLevel = if (json.has("skipAfterLevel") && !json.isNull("skipAfterLevel")) json.optInt("skipAfterLevel").coerceIn(1, 50) else null
+            val skipAfterLevel = if (json.has("skipAfterLevel") && !json.isNull("skipAfterLevel")) json.optInt("skipAfterLevel").coerceIn(1, 8) else null
             val patternLength = if (strategy == Strategy.CUSTOM) json.optInt("patternLength", 4).coerceIn(4, 5) else 3
             val reverseOnLoss = json.optBoolean("reverseOnLoss", false)
-            val levelCount = json.optInt("levelCount", 8).coerceIn(1, 50)
+            val levelCount = json.optInt("levelCount", 8).coerceIn(1, 8)
             val rulesJson = json.optJSONArray("rules") ?: JSONArray()
             val rules = (0 until rulesJson.length()).mapNotNull { i ->
                 val item = rulesJson.optJSONObject(i) ?: return@mapNotNull null
@@ -60,10 +60,10 @@ object StrategyConfigStore {
             .put("mode", config.mode.name)
             .put("skipOnLoss", config.skipOnLoss?.coerceIn(0, 50) ?: JSONObject.NULL)
             .put("startingSide", config.startingSide.name)
-            .put("skipAfterLevel", config.skipAfterLevel?.coerceIn(1, 50) ?: JSONObject.NULL)
+            .put("skipAfterLevel", config.skipAfterLevel?.coerceIn(1, 8) ?: JSONObject.NULL)
             .put("patternLength", if (strategy == Strategy.CUSTOM) config.patternLength.coerceIn(4, 5) else 3)
             .put("reverseOnLoss", config.reverseOnLoss)
-            .put("levelCount", config.levelCount.coerceIn(1, 50))
+            .put("levelCount", config.levelCount.coerceIn(1, 8))
         val rules = JSONArray()
         config.rules.take(if (strategy == Strategy.CUSTOM) 5 else 3).forEach { rule ->
             if (rule.pattern.length == config.patternLength) {

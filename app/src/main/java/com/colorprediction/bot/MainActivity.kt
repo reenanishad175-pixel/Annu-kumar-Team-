@@ -279,7 +279,7 @@ class MainActivity : Activity() {
             val prediction = prefs.getString("current_prediction", "WAITING") ?: "WAITING"
             predictionView.text = prediction
             predictionView.setTextColor(if (prediction == "BIG" || prediction == "SMALL") Color.rgb(34,211,119) else Color.rgb(255,70,70))
-            levelView.text = "LABEL  " + prefs.getInt("current_level",1)
+            levelView.text = "LABEL  " + prefs.getInt("current_level",1).coerceIn(1, 8)
             // Dashboard shows progression label, not internal strategy name.
         }
         if (::periodView.isInitialized) periodView.text = "GAME: " + (prefs.getString("active_game_duration", prefs.getString("game_duration", "—")) ?: "—") + "   •   PERIOD: " + (prefs.getString("current_period","—") ?: "—") + "   •   SKIP: " + prefs.getInt("engine_skip",0) + "/" + prefs.getInt("engine_skip_total",0)
@@ -419,7 +419,7 @@ class MainActivity : Activity() {
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.levelCount.toString())
         }
         if (strategy != Strategy.CUSTOM) {
-            content.addView(text("LEVEL COUNT — इस Strategy को कुल कितने Level तक चलाना है? (1–50)", 14f, Color.DKGRAY, true))
+            content.addView(text("LEVEL COUNT — इस Strategy को कुल कितने Level तक चलाना है? (1–8)", 14f, Color.DKGRAY, true))
             content.addView(levelCountInput)
         }
         val levelInput = EditText(this).apply {
@@ -490,9 +490,9 @@ class MainActivity : Activity() {
                 val levelCountText = levelCountInput.text.toString().trim()
                 val levelCount = if (strategy == Strategy.CUSTOM) config.levelCount else levelCountText.toIntOrNull()
                 if ((skipText.isNotBlank() && (skip == null || skip !in 0..50)) ||
-                    (levelText.isNotBlank() && (threshold == null || threshold !in 1..50)) ||
-                    (strategy != Strategy.CUSTOM && (levelCount == null || levelCount !in 1..50))) {
-                    Toast.makeText(this, "SKIP 0–50, SKIP START LEVEL 1–50 और LEVEL COUNT 1–50 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
+                    (levelText.isNotBlank() && (threshold == null || threshold !in 1..8)) ||
+                    (strategy != Strategy.CUSTOM && (levelCount == null || levelCount !in 1..8))) {
+                    Toast.makeText(this, "SKIP 0–50, SKIP START LEVEL 1–8 और LEVEL COUNT 1–8 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
                 }
                 val mode = when (modeSpinner.selectedItemPosition) { 1 -> StrategyMode.ALTERNATE; 2 -> StrategyMode.FOLLOW_LAST; else -> StrategyMode.PATTERN }
                 val size = if (strategy == Strategy.CUSTOM) if (lengthSpinner.selectedItemPosition == 1) 5 else 4 else 3

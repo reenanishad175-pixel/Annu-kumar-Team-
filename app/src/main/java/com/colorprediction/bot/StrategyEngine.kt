@@ -175,7 +175,7 @@ object StrategyEngine {
         // WIN resets the sequence; LOSS advances it by one.
         if (prediction.strategy == Strategy.CUSTOM) {
             val customSkips = if (win) 0 else StrategyConfigStore.effectiveSkip(prefs, Strategy.CUSTOM, state.level)
-            val nextLevel = if (win) 1 else state.level + 1
+            val nextLevel = if (win || state.level >= 8) 1 else (state.level + 1).coerceAtMost(8)
             return state.copy(
                 level = nextLevel,
                 skipRemaining = state.skipRemaining,
@@ -194,7 +194,7 @@ object StrategyEngine {
         )
         val skips = StrategyConfigStore.effectiveSkip(prefs, prediction.strategy, state.level)
         return state.copy(
-            level = state.level + 1, skipRemaining = skips, skipTotal = skips,
+            level = if (state.level >= 8) 1 else (state.level + 1).coerceAtMost(8), skipRemaining = skips, skipTotal = skips,
             pausedUntilMillis = 0L, lastBetPeriod = period,
             lastPrediction = prediction.side, lastStrategy = prediction.strategy, lastOutcome = "LOSS"
         )

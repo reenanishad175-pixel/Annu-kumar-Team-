@@ -49,7 +49,7 @@ object BdgAutomationController {
                 .putString("current_prediction", "WAITING")
                 .putString("current_strategy", "")
                 .putString("current_period", snapshot.currentPeriod)
-                .putInt("current_level", state.level)
+                .putInt("current_level", state.level.coerceIn(1, 8))
                 .putString("recent_activity", "History gap • unknown result not counted • monitoring continues")
                 .putString("bot_status", "HISTORY RECONCILED • Waiting for next period")
                 .apply()
@@ -64,7 +64,7 @@ object BdgAutomationController {
                 if (side != null && strategy != null) {
                     resolvedPendingThisCycle = true
                     val prediction = Prediction(side, strategy)
-                    val level = prefs.getInt("pending_level", state.level)
+                    val level = prefs.getInt("pending_level", state.level).coerceIn(1, 8)
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
                     state = StrategyEngine.onOutcome(
                         state, pendingPeriod, prediction, actual.side,
@@ -191,7 +191,7 @@ object BdgAutomationController {
     }
 
     private fun loadState(prefs: android.content.SharedPreferences) = EngineState(
-        level = prefs.getInt("engine_level", 1).coerceAtLeast(1),
+        level = prefs.getInt("engine_level", 1).coerceIn(1, 8),
         skipRemaining = prefs.getInt("engine_skip", 0).coerceAtLeast(0),
         skipTotal = prefs.getInt("engine_skip_total", 0).coerceAtLeast(0),
         pausedUntilMillis = 0L,
