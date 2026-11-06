@@ -37,6 +37,13 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A fresh app launch starts a new Telegram win-count session.
+        prefs.edit()
+            .putInt("telegram_wins_completed", 0)
+            .putBoolean("telegram_predictions_paused", false)
+            .putBoolean("stop_after_win_requested", false)
+            .putBoolean("predictions_stopped", false)
+            .apply()
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         showLoginLinkSettings()
     }
@@ -141,8 +148,7 @@ class MainActivity : Activity() {
                     .putBoolean("predictions_stopped", false)
                     .putBoolean("stop_after_win_requested", false)
                     .putBoolean("telegram_predictions_paused", false)
-                    .putInt("telegram_bins_started", 0)
-                    .putInt("telegram_bins_completed", 0)
+                    .putInt("telegram_wins_completed", 0)
                     .putBoolean("pending_telegram_bin", false)
                     .putString("current_prediction", "WAITING")
                     .putString("bot_status", "START REQUESTED • waiting for next BDG period")
