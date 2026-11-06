@@ -408,8 +408,8 @@ class MainActivity : Activity() {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("4 RESULTS (4-LETTER PATTERN)", "5 RESULTS (5-LETTER PATTERN)"))
             setSelection(if (config.patternLength == 5) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        if (strategy == Strategy.CUSTOM) content.addView(text("CUSTOM PATTERN LENGTH — 4 या 5 पुराने RESULT चुनें", 14f, Color.DKGRAY, true))
-        if (strategy == Strategy.CUSTOM) content.addView(lengthSpinner)
+        val patternLengthLabel = text("CUSTOM PATTERN LENGTH — 4 या 5 पुराने RESULT चुनें", 14f, Color.DKGRAY, true)
+        if (strategy == Strategy.CUSTOM) { content.addView(patternLengthLabel); content.addView(lengthSpinner) }
         val skipInput = EditText(this).apply {
             hint = "Default: ${StrategyConfigStore.defaultSkipLabel(strategy)}"; inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipOnLoss?.toString().orEmpty())
@@ -432,13 +432,15 @@ class MainActivity : Activity() {
             content.addView(text("SKIP START LEVEL — किस LEVEL पर LOSS हो तो SKIP COUNT लागू होगा? (1–50)", 14f, Color.DKGRAY, true)); content.addView(levelInput)
         }
         val reverse = Switch(this).apply {
-            text = "OPPOSITE PATTERN AFTER LOSS — ON / OFF"; setTextColor(Color.BLACK); isChecked = config.reverseOnLoss
+            text = "OPPOSITE AFTER LOSS — ON / OFF"; setTextColor(Color.BLACK); isChecked = config.reverseOnLoss
         }
-        if (strategy == Strategy.CUSTOM) { content.addView(text("LOSS के बाद अगले custom prediction को उल्टा करने का विकल्प", 13f, Color.DKGRAY)); content.addView(reverse) }
+        val reverseHint = text("LOSS के बाद अगली चुनी हुई custom prediction को उल्टा करें", 13f, Color.DKGRAY)
+        if (strategy == Strategy.CUSTOM) { content.addView(reverseHint); content.addView(reverse) }
         val patternInputs = mutableListOf<EditText>()
         val sideSpinners = mutableListOf<Spinner>()
+        val patternEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         repeat(if (strategy == Strategy.CUSTOM) 5 else 3) { index ->
-            content.addView(text("PATTERN ${index + 1}", 13f, Color.CYAN, true))
+            patternEditor.addView(text("PATTERN ${index + 1}", 13f, Color.CYAN, true))
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val pattern = EditText(this).apply {
                 hint = if (strategy == Strategy.CUSTOM) { if (lengthSpinner.selectedItemPosition == 1) "उदा. BSBBS" else "उदा. BSBB" } else "उदा. BSB"
@@ -451,8 +453,9 @@ class MainActivity : Activity() {
                 setSelection(if (config.rules.getOrNull(index)?.prediction == Side.SMALL) 1 else 0)
             }
             row.addView(pattern, LinearLayout.LayoutParams(0, dp(52), 1f)); row.addView(side, LinearLayout.LayoutParams(dp(112), dp(48)))
-            content.addView(row); patternInputs.add(pattern); sideSpinners.add(side)
+            patternEditor.addView(row); patternInputs.add(pattern); sideSpinners.add(side)
         }
+        if (strategy == Strategy.CUSTOM) content.addView(patternEditor)
         val startingLabel = text("ONE-BY-ONE MODE का पहला SIDE", 13f, Color.DKGRAY, true)
         val starting = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
@@ -461,16 +464,23 @@ class MainActivity : Activity() {
         if (strategy == Strategy.CUSTOM) {
             content.addView(startingLabel)
             content.addView(starting)
-            val updateStartingVisibility = {
-                val visible = modeSpinner.selectedItemPosition == 1
-                startingLabel.visibility = if (visible) View.VISIBLE else View.GONE
-                starting.visibility = if (visible) View.VISIBLE else View.GONE
+            val updateModeOptions = {
+                val isPattern = modeSpinner.selectedItemPosition == 0
+                val isOneByOne = modeSpinner.selectedItemPosition == 1
+                val patternVisibility = if (isPattern) View.VISIBLE else View.GONE
+                patternLengthLabel.visibility = patternVisibility
+                lengthSpinner.visibility = patternVisibility
+                patternEditor.visibility = patternVisibility
+                startingLabel.visibility = if (isOneByOne) View.VISIBLE else View.GONE
+                starting.visibility = if (isOneByOne) View.VISIBLE else View.GONE
+                reverseHint.visibility = View.VISIBLE
+                reverse.visibility = View.VISIBLE
             }
             modeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateStartingVisibility()
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateModeOptions()
             }
-            updateStartingVisibility()
+            updateModeOptions()
         }
         val dialog = AlertDialog.Builder(this).setTitle("STRATEGY SETTINGS").setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
@@ -486,21 +496,26 @@ class MainActivity : Activity() {
                     (strategy != Strategy.CUSTOM && (levelCount == null || levelCount !in 1..50))) {
                     Toast.makeText(this, "SKIP 0–50, SKIP START LEVEL 1–50 और LEVEL COUNT 1–50 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
                 }
+                val mode = when (modeSpinner.selectedItemPosition) { 1 -> StrategyMode.ALTERNATE; 2 -> StrategyMode.FOLLOW_LAST; else -> StrategyMode.PATTERN }
                 val size = if (strategy == Strategy.CUSTOM) if (lengthSpinner.selectedItemPosition == 1) 5 else 4 else 3
                 val rules = mutableListOf<StrategyRule>()
-                for (i in patternInputs.indices) {
-                    val value = patternInputs[i].text.toString().trim().uppercase()
-                    if (value.isBlank()) continue
-                    if (value.length != size || value.any { it != 'B' && it != 'S' }) {
-                        Toast.makeText(this, "हर pattern में ${size} अक्षर B या S रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
+                // Pattern fields are read and saved only in PATTERN MATCHING mode.
+                if (strategy != Strategy.CUSTOM || mode == StrategyMode.PATTERN) {
+                    for (i in patternInputs.indices) {
+                        val value = patternInputs[i].text.toString().trim().uppercase()
+                        if (value.isBlank()) continue
+                        if (value.length != size || value.any { it != 'B' && it != 'S' }) {
+                            Toast.makeText(this, "हर pattern में ${size} अक्षर B या S रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
+                        }
+                        rules.add(StrategyRule(value, if (sideSpinners[i].selectedItemPosition == 1) Side.SMALL else Side.BIG))
                     }
-                    rules.add(StrategyRule(value, if (sideSpinners[i].selectedItemPosition == 1) Side.SMALL else Side.BIG))
                 }
-                val mode = when (modeSpinner.selectedItemPosition) { 1 -> StrategyMode.ALTERNATE; 2 -> StrategyMode.FOLLOW_LAST; else -> StrategyMode.PATTERN }
                 StrategyConfigStore.save(prefs, strategy, StrategyConfig(
                     mode = if (strategy == Strategy.CUSTOM) mode else StrategyMode.PATTERN,
-                    skipOnLoss = skip, startingSide = if (starting.selectedItemPosition == 1) Side.SMALL else Side.BIG,
-                    rules = rules, skipAfterLevel = threshold, patternLength = size,
+                    skipOnLoss = skip,
+                    startingSide = if (strategy == Strategy.CUSTOM && mode == StrategyMode.ALTERNATE && starting.selectedItemPosition == 1) Side.SMALL else Side.BIG,
+                    rules = rules, skipAfterLevel = threshold,
+                    patternLength = if (strategy == Strategy.CUSTOM && mode == StrategyMode.PATTERN) size else config.patternLength,
                     reverseOnLoss = if (strategy == Strategy.CUSTOM) reverse.isChecked else false,
                     levelCount = levelCount ?: config.levelCount
                 ))
