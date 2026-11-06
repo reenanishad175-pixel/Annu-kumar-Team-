@@ -409,12 +409,12 @@ class MainActivity : Activity() {
             setSelection(if (config.patternLength == 5) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
         if (strategy == Strategy.CUSTOM) content.addView(text("CUSTOM PATTERN LENGTH — 4 या 5 पुराने RESULT चुनें", 14f, Color.DKGRAY, true))
-        content.addView(lengthSpinner)
+        if (strategy == Strategy.CUSTOM) content.addView(lengthSpinner)
         val skipInput = EditText(this).apply {
             hint = "Default: ${StrategyConfigStore.defaultSkipLabel(strategy)}"; inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipOnLoss?.toString().orEmpty())
         }
-        content.addView(text("SKIP COUNT — LOSS के बाद कितने अगले PERIOD छोड़ने हैं? (0–50)", 14f, Color.DKGRAY, true)); content.addView(skipInput)
+        if (strategy != Strategy.CUSTOM) { content.addView(text("SKIP COUNT — LOSS के बाद कितने अगले PERIOD छोड़ने हैं? (0–50)", 14f, Color.DKGRAY, true)); content.addView(skipInput) }
         val levelInput = EditText(this).apply {
             hint = "खाली = पुराना default"; inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipAfterLevel?.toString().orEmpty())
@@ -432,7 +432,7 @@ class MainActivity : Activity() {
             content.addView(text("PATTERN ${index + 1}", 13f, Color.CYAN, true))
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val pattern = EditText(this).apply {
-                hint = if (config.patternLength == 5 && strategy == Strategy.CUSTOM) "उदा. BSBBS" else "उदा. BSB"
+                hint = if (strategy == Strategy.CUSTOM) { if (lengthSpinner.selectedItemPosition == 1) "उदा. BSBBS" else "उदा. BSBB" } else "उदा. BSB"
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                 filters = arrayOf(android.text.InputFilter.LengthFilter(if (strategy == Strategy.CUSTOM) 5 else 3), android.text.InputFilter.AllCaps())
                 setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.rules.getOrNull(index)?.pattern.orEmpty())
@@ -448,7 +448,7 @@ class MainActivity : Activity() {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
             setSelection(if (config.startingSide == Side.SMALL) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        if (strategy == Strategy.CUSTOM && config.mode == StrategyMode.ALTERNATE) { content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting) }
+        if (strategy == Strategy.CUSTOM) { content.addView(text("ONE-BY-ONE MODE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting) }
         val dialog = AlertDialog.Builder(this).setTitle("STRATEGY SETTINGS").setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
