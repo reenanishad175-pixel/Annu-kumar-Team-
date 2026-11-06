@@ -209,7 +209,8 @@ object BdgAutomationController {
         lastProcessedPeriod = prefs.getString("engine_last_processed_period", null),
         lastPrediction = prefs.getString("engine_last_prediction", null)?.let { runCatching { Side.valueOf(it) }.getOrNull() },
         lastStrategy = prefs.getString("engine_last_strategy", null)?.let { runCatching { Strategy.valueOf(it) }.getOrNull() },
-        lastOutcome = prefs.getString("engine_last_outcome", null)
+        lastOutcome = prefs.getString("engine_last_outcome", null),
+        customSkipRemaining = prefs.getInt("engine_custom_skip", 0).coerceAtLeast(0)
     )
 
     private fun saveState(prefs: android.content.SharedPreferences, state: EngineState) {
@@ -222,6 +223,7 @@ object BdgAutomationController {
             .putString("engine_last_prediction", state.lastPrediction?.name)
             .putString("engine_last_strategy", state.lastStrategy?.name)
             .putString("engine_last_outcome", state.lastOutcome)
+            .putInt("engine_custom_skip", state.customSkipRemaining)
             .putInt("current_level", state.level)
             .apply()
     }

@@ -14,7 +14,8 @@ data class StrategyConfig(
     val rules: List<StrategyRule>,
     val skipAfterLevel: Int? = null,
     val patternLength: Int = 3,
-    val reverseOnLoss: Boolean = false
+    val reverseOnLoss: Boolean = false,
+    val levelCount: Int = 8
 )
 
 object StrategyConfigStore {
@@ -44,7 +45,9 @@ object StrategyConfigStore {
             mode = StrategyMode.PATTERN,
             skipOnLoss = null,
             startingSide = Side.BIG,
-            rules = rules
+            rules = rules,
+            patternLength = if (strategy == Strategy.CUSTOM) 4 else 3,
+            levelCount = 8
         )
     }
 
@@ -58,6 +61,7 @@ object StrategyConfigStore {
             val skipAfterLevel = if (json.has("skipAfterLevel") && !json.isNull("skipAfterLevel")) json.optInt("skipAfterLevel").coerceIn(1, 50) else null
             val patternLength = if (strategy == Strategy.CUSTOM) json.optInt("patternLength", 4).coerceIn(4, 5) else 3
             val reverseOnLoss = json.optBoolean("reverseOnLoss", false)
+            val levelCount = json.optInt("levelCount", 8).coerceIn(1, 50)
             val rulesJson = json.optJSONArray("rules") ?: JSONArray()
             val rules = (0 until rulesJson.length()).mapNotNull { i ->
                 val item = rulesJson.optJSONObject(i) ?: return@mapNotNull null
@@ -65,7 +69,7 @@ object StrategyConfigStore {
                 val side = runCatching { Side.valueOf(item.optString("prediction", "BIG")) }.getOrNull()
                 if (pattern.length == patternLength && side != null) StrategyRule(pattern, side) else null
             }.take(if (strategy == Strategy.CUSTOM) 5 else 3)
-            StrategyConfig(mode, skip, starting, rules, skipAfterLevel, patternLength, reverseOnLoss)
+            StrategyConfig(mode, skip, starting, rules, skipAfterLevel, patternLength, reverseOnLoss, levelCount)
         }.getOrDefault(defaults(strategy))
     }
 
@@ -77,6 +81,7 @@ object StrategyConfigStore {
             .put("skipAfterLevel", config.skipAfterLevel?.coerceIn(1, 50) ?: JSONObject.NULL)
             .put("patternLength", if (strategy == Strategy.CUSTOM) config.patternLength.coerceIn(4, 5) else 3)
             .put("reverseOnLoss", config.reverseOnLoss)
+            .put("levelCount", config.levelCount.coerceIn(1, 50))
         val rules = JSONArray()
         config.rules.take(if (strategy == Strategy.CUSTOM) 5 else 3).forEach { rule ->
             if (rule.pattern.length == config.patternLength) {
@@ -117,7 +122,7 @@ object StrategyConfigStore {
 
     fun effectiveSkip(prefs: SharedPreferences?, strategy: Strategy, level: Int): Int {
         val config = if (prefs == null) defaults(strategy) else load(prefs, strategy)
-        if (config.skipOnLoss != null) return if (config.skipAfterLevel == null || level >= config.skipAfterLevel) config.skipOnLoss else 0
+        if (config.skipOnLoss != null) return if (strategy == Strategy.CUSTOM || config.skipAfterLevel == null || level >= config.skipAfterLevel) config.skipOnLoss else 0
         return when (strategy) {
             Strategy.TREND_BASE -> if (level >= 2) 5 else 0
             Strategy.ONE_BY_ONE -> 1

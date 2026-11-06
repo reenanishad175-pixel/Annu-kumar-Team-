@@ -22,7 +22,8 @@ data class EngineState(
     val lastProcessedPeriod: String? = null,
     val lastPrediction: Side? = null,
     val lastStrategy: Strategy? = null,
-    val lastOutcome: String? = null
+    val lastOutcome: String? = null,
+    val customSkipRemaining: Int = 0
 )
 data class EngineUpdate(val state: EngineState, val prediction: Prediction? = null, val status: String)
 
@@ -33,18 +34,19 @@ object StrategyEngine {
         EngineState(lastProcessedPeriod = latestPeriod)
 
     fun recoverExpiredPending(state: EngineState, latestPeriod: String): EngineState =
-        state.copy(level = 1, skipRemaining = 0, skipTotal = 0, pausedUntilMillis = 0L, lastProcessedPeriod = latestPeriod)
+        state.copy(level = 1, skipRemaining = 0, skipTotal = 0, customSkipRemaining = 0, pausedUntilMillis = 0L, lastProcessedPeriod = latestPeriod)
 
     fun predict(lastThree: List<Side>): Prediction? = predict(lastThree, null, null)
 
     /** Predict using the four established strategies only. */
-    fun predict(lastThree: List<Side>, prefs: SharedPreferences?, lastPrediction: Side?): Prediction? {
+    fun predict(lastThree: List<Side>, prefs: SharedPreferences?, lastPrediction: Side?, currentLevel: Int = 1): Prediction? {
         if (lastThree.size != 3) return null
         val pattern = lastThree.joinToString("") { if (it == Side.BIG) "B" else "S" }
         val builtIns = listOf(Strategy.TREND_BASE, Strategy.ONE_BY_ONE, Strategy.LAST_THREE_B, Strategy.LAST_THREE_A)
         for (strategy in builtIns) {
             if (!StrategyConfigStore.isStrategyEnabled(prefs, strategy)) continue
             val config = if (prefs == null) StrategyConfigStore.defaults(strategy) else StrategyConfigStore.load(prefs, strategy)
+            if (currentLevel > config.levelCount) continue
             val rule = config.rules.firstOrNull { it.pattern == pattern }
             if (rule != null) return Prediction(rule.prediction, strategy)
         }
@@ -82,24 +84,28 @@ object StrategyEngine {
         }
         if (state.skipRemaining > 0) {
             val remaining = state.skipRemaining - 1
-            val next = state.copy(skipRemaining = remaining, lastProcessedPeriod = period)
+            val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM)
+                else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
+            val next = state.copy(skipRemaining = remaining, skipTotal = if (remaining == 0) 0 else state.skipTotal,
+                customSkipRemaining = (state.customSkipRemaining - 1).coerceAtLeast(0), lastProcessedPeriod = period)
             if (customStrategyEnabled) {
-                val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM)
-                    else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
+                if (state.customSkipRemaining > 0) return EngineUpdate(next, status = "CUSTOM SKIP • ${next.customSkipRemaining} remaining")
                 val customPrediction = predictCustom(lastThree, config, if (state.lastStrategy == Strategy.CUSTOM) state.lastPrediction else null, state.lastStrategy == Strategy.CUSTOM && state.lastOutcome == "LOSS")
-                if (customPrediction != null) {
-                    return EngineUpdate(next, customPrediction, "CUSTOM STRATEGY ACTIVE • ${remaining} SKIP PERIODS LEFT")
-                }
+                if (customPrediction != null) return EngineUpdate(next, customPrediction, "CUSTOM STRATEGY ACTIVE • ${remaining} BUILT-IN SKIP PERIODS LEFT")
                 return EngineUpdate(next, status = "CUSTOM STRATEGY • Pattern not matched")
             }
             return EngineUpdate(next, status = "SKIP • ${remaining} remaining")
+        }
+        if (state.customSkipRemaining > 0) {
+            val next = state.copy(customSkipRemaining = state.customSkipRemaining - 1, lastProcessedPeriod = period)
+            return EngineUpdate(next, status = "CUSTOM SKIP • ${next.customSkipRemaining} remaining")
         }
         val builtInEnabled = StrategyConfigStore.hasAnyBuiltInEnabled(prefs)
         val customEnabled = customStrategyEnabled || (prefs != null && StrategyConfigStore.isStrategyEnabled(prefs, Strategy.CUSTOM))
         val prediction = if (!builtInEnabled && customEnabled) {
             val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM) else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
             predictCustom(lastThree, config, if (state.lastStrategy == Strategy.CUSTOM) state.lastPrediction else null, state.lastStrategy == Strategy.CUSTOM && state.lastOutcome == "LOSS")
-        } else predict(lastThree.take(3), prefs, state.lastPrediction)
+        } else predict(lastThree.take(3), prefs, state.lastPrediction, state.level)
         if (prediction == null) return EngineUpdate(state.copy(lastProcessedPeriod = period), status = if (!builtInEnabled && customEnabled) "CUSTOM STRATEGY • Pattern not matched" else "SKIP • No configured pattern")
         return EngineUpdate(state.copy(lastProcessedPeriod = period), prediction, "PREDICTION READY")
     }
@@ -116,10 +122,12 @@ object StrategyEngine {
         // A custom prediction fills one of the built-in strategy's already
         // scheduled skip periods. Its result must not reset or extend that
         // original skip window or alter the original strategy's level.
-        if (prediction.strategy == Strategy.CUSTOM && state.skipTotal > 0) {
+        if (prediction.strategy == Strategy.CUSTOM) {
+            val customSkips = if (win) 0 else StrategyConfigStore.effectiveSkip(prefs, Strategy.CUSTOM, state.level)
             return state.copy(
                 skipRemaining = state.skipRemaining,
                 skipTotal = if (state.skipRemaining > 0) state.skipTotal else 0,
+                customSkipRemaining = customSkips,
                 lastBetPeriod = period,
                 lastPrediction = prediction.side,
                 lastStrategy = Strategy.CUSTOM,

@@ -414,7 +414,16 @@ class MainActivity : Activity() {
             hint = "Default: ${StrategyConfigStore.defaultSkipLabel(strategy)}"; inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipOnLoss?.toString().orEmpty())
         }
-        if (strategy != Strategy.CUSTOM) { content.addView(text("SKIP COUNT — LOSS के बाद कितने अगले PERIOD छोड़ने हैं? (0–50)", 14f, Color.DKGRAY, true)); content.addView(skipInput) }
+        content.addView(text(if (strategy == Strategy.CUSTOM) "CUSTOM SKIP COUNT — Custom LOSS के बाद कितने अगले PERIOD छोड़ें? (0–50)" else "SKIP COUNT — LOSS के बाद कितने अगले PERIOD छोड़ने हैं? (0–50)", 14f, Color.DKGRAY, true))
+        content.addView(skipInput)
+        val levelCountInput = EditText(this).apply {
+            hint = "Default: 8"; inputType = InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.levelCount.toString())
+        }
+        if (strategy != Strategy.CUSTOM) {
+            content.addView(text("LEVEL COUNT — इस Strategy को कुल कितने Level तक चलाना है? (1–50)", 14f, Color.DKGRAY, true))
+            content.addView(levelCountInput)
+        }
         val levelInput = EditText(this).apply {
             hint = "खाली = पुराना default"; inputType = InputType.TYPE_CLASS_NUMBER
             setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipAfterLevel?.toString().orEmpty())
@@ -444,11 +453,25 @@ class MainActivity : Activity() {
             row.addView(pattern, LinearLayout.LayoutParams(0, dp(52), 1f)); row.addView(side, LinearLayout.LayoutParams(dp(112), dp(48)))
             content.addView(row); patternInputs.add(pattern); sideSpinners.add(side)
         }
+        val startingLabel = text("ONE-BY-ONE MODE का पहला SIDE", 13f, Color.DKGRAY, true)
         val starting = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
             setSelection(if (config.startingSide == Side.SMALL) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        if (strategy == Strategy.CUSTOM) { content.addView(text("ONE-BY-ONE MODE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting) }
+        if (strategy == Strategy.CUSTOM) {
+            content.addView(startingLabel)
+            content.addView(starting)
+            val updateStartingVisibility = {
+                val visible = modeSpinner.selectedItemPosition == 1
+                startingLabel.visibility = if (visible) View.VISIBLE else View.GONE
+                starting.visibility = if (visible) View.VISIBLE else View.GONE
+            }
+            modeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateStartingVisibility()
+            }
+            updateStartingVisibility()
+        }
         val dialog = AlertDialog.Builder(this).setTitle("STRATEGY SETTINGS").setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -456,8 +479,12 @@ class MainActivity : Activity() {
                 val skip = if (skipText.isBlank()) null else skipText.toIntOrNull()
                 val levelText = levelInput.text.toString().trim()
                 val threshold = if (levelText.isBlank()) null else levelText.toIntOrNull()
-                if ((skipText.isNotBlank() && (skip == null || skip !in 0..50)) || (levelText.isNotBlank() && (threshold == null || threshold !in 1..50))) {
-                    Toast.makeText(this, "SKIP 0–50 और LEVEL 1–50 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
+                val levelCountText = levelCountInput.text.toString().trim()
+                val levelCount = if (strategy == Strategy.CUSTOM) config.levelCount else levelCountText.toIntOrNull()
+                if ((skipText.isNotBlank() && (skip == null || skip !in 0..50)) ||
+                    (levelText.isNotBlank() && (threshold == null || threshold !in 1..50)) ||
+                    (strategy != Strategy.CUSTOM && (levelCount == null || levelCount !in 1..50))) {
+                    Toast.makeText(this, "SKIP 0–50, SKIP START LEVEL 1–50 और LEVEL COUNT 1–50 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
                 }
                 val size = if (strategy == Strategy.CUSTOM) if (lengthSpinner.selectedItemPosition == 1) 5 else 4 else 3
                 val rules = mutableListOf<StrategyRule>()
@@ -473,7 +500,9 @@ class MainActivity : Activity() {
                 StrategyConfigStore.save(prefs, strategy, StrategyConfig(
                     mode = if (strategy == Strategy.CUSTOM) mode else StrategyMode.PATTERN,
                     skipOnLoss = skip, startingSide = if (starting.selectedItemPosition == 1) Side.SMALL else Side.BIG,
-                    rules = rules, skipAfterLevel = threshold, patternLength = size, reverseOnLoss = if (strategy == Strategy.CUSTOM) reverse.isChecked else false
+                    rules = rules, skipAfterLevel = threshold, patternLength = size,
+                    reverseOnLoss = if (strategy == Strategy.CUSTOM) reverse.isChecked else false,
+                    levelCount = levelCount ?: config.levelCount
                 ))
                 StrategyConfigStore.setStrategyEnabled(prefs, strategy, enabled.isChecked)
                 dialog.dismiss(); Toast.makeText(this, "Strategy settings saved", Toast.LENGTH_SHORT).show()
