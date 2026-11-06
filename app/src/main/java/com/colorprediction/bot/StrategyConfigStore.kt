@@ -56,7 +56,7 @@ object StrategyConfigStore {
             val skip = if (json.has("skipOnLoss") && !json.isNull("skipOnLoss")) json.optInt("skipOnLoss").coerceIn(0, 50) else null
             val starting = runCatching { Side.valueOf(json.optString("startingSide", "BIG")) }.getOrDefault(Side.BIG)
             val skipAfterLevel = if (json.has("skipAfterLevel") && !json.isNull("skipAfterLevel")) json.optInt("skipAfterLevel").coerceIn(1, 50) else null
-            val patternLength = if (json.optInt("patternLength", 3) == 5) 5 else 3
+            val patternLength = if (strategy == Strategy.CUSTOM) json.optInt("patternLength", 4).coerceIn(4, 5) else 3
             val reverseOnLoss = json.optBoolean("reverseOnLoss", false)
             val rulesJson = json.optJSONArray("rules") ?: JSONArray()
             val rules = (0 until rulesJson.length()).mapNotNull { i ->
@@ -75,7 +75,7 @@ object StrategyConfigStore {
             .put("skipOnLoss", config.skipOnLoss?.coerceIn(0, 50) ?: JSONObject.NULL)
             .put("startingSide", config.startingSide.name)
             .put("skipAfterLevel", config.skipAfterLevel?.coerceIn(1, 50) ?: JSONObject.NULL)
-            .put("patternLength", if (strategy == Strategy.CUSTOM && config.patternLength == 5) 5 else 3)
+            .put("patternLength", if (strategy == Strategy.CUSTOM) config.patternLength.coerceIn(4, 5) else 3)
             .put("reverseOnLoss", config.reverseOnLoss)
         val rules = JSONArray()
         config.rules.take(if (strategy == Strategy.CUSTOM) 5 else 3).forEach { rule ->

@@ -394,38 +394,38 @@ class MainActivity : Activity() {
         content.addView(text(if (strategy == Strategy.CUSTOM) "CUSTOM STRATEGY" else strategy.title.uppercase(), 18f, Color.CYAN, true))
         val enabled = Switch(this).apply {
             text = if (strategy == Strategy.CUSTOM) "ENABLE CUSTOM (SKIP REPLACEMENT / STANDALONE)" else "ENABLE THIS STRATEGY"
-            setTextColor(Color.DKGRAY); isChecked = StrategyConfigStore.isStrategyEnabled(prefs, strategy)
+            setTextColor(Color.BLACK); isChecked = StrategyConfigStore.isStrategyEnabled(prefs, strategy)
         }
         content.addView(enabled)
-        if (strategy == Strategy.CUSTOM) content.addView(text("चारों पुरानी strategies OFF हों तो Custom अकेली चलेगी।", 11f, Color.LTGRAY))
+        if (strategy == Strategy.CUSTOM) content.addView(text("चारों पुरानी OFF = Custom अकेली चलेगी। कोई पुरानी ON = Custom केवल उसके SKIP PERIOD में चलेगी।", 12f, Color.DKGRAY))
         val modeSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("PATTERN MATCHING", "ONE BIG / ONE SMALL", "FOLLOW LATEST RESULT"))
             setSelection(when (config.mode) { StrategyMode.PATTERN -> 0; StrategyMode.ALTERNATE -> 1; StrategyMode.FOLLOW_LAST -> 2 })
             isEnabled = strategy == Strategy.CUSTOM
         }
-        content.addView(text("CUSTOM MODE", 13f, Color.WHITE, true)); content.addView(modeSpinner)
+        if (strategy == Strategy.CUSTOM) { content.addView(text("CUSTOM MODE", 14f, Color.DKGRAY, true)); content.addView(modeSpinner) }
         val lengthSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("3 RESULTS", "5 RESULTS"))
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("4 RESULTS (4-LETTER PATTERN)", "5 RESULTS (5-LETTER PATTERN)"))
             setSelection(if (config.patternLength == 5) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        if (strategy == Strategy.CUSTOM) content.addView(text("पिछले कितने पीरियड का पैटर्न?", 13f, Color.WHITE, true))
+        if (strategy == Strategy.CUSTOM) content.addView(text("CUSTOM PATTERN LENGTH — 4 या 5 पुराने RESULT चुनें", 14f, Color.DKGRAY, true))
         content.addView(lengthSpinner)
         val skipInput = EditText(this).apply {
             hint = "Default: ${StrategyConfigStore.defaultSkipLabel(strategy)}"; inputType = InputType.TYPE_CLASS_NUMBER
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); setText(config.skipOnLoss?.toString().orEmpty())
+            setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipOnLoss?.toString().orEmpty())
         }
-        content.addView(text("LOSS के बाद कितने नए period SKIP करने हैं? (0–50)", 13f, Color.WHITE, true)); content.addView(skipInput)
+        content.addView(text("SKIP COUNT — LOSS के बाद कितने अगले PERIOD छोड़ने हैं? (0–50)", 14f, Color.DKGRAY, true)); content.addView(skipInput)
         val levelInput = EditText(this).apply {
             hint = "खाली = पुराना default"; inputType = InputType.TYPE_CLASS_NUMBER
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); setText(config.skipAfterLevel?.toString().orEmpty())
+            setSingleLine(true); setTextColor(Color.BLACK); setHintTextColor(Color.DKGRAY); setText(config.skipAfterLevel?.toString().orEmpty())
         }
         if (strategy != Strategy.CUSTOM) {
-            content.addView(text("किस LEVEL पर LOSS होने के बाद SKIP लागू हो? (1–50)", 13f, Color.WHITE, true)); content.addView(levelInput)
+            content.addView(text("SKIP START LEVEL — किस LEVEL पर LOSS हो तो SKIP COUNT लागू होगा? (1–50)", 14f, Color.DKGRAY, true)); content.addView(levelInput)
         }
         val reverse = Switch(this).apply {
-            text = "LOSS होने पर अगली बार उल्टा PATTERN चलाएँ"; setTextColor(Color.WHITE); isChecked = config.reverseOnLoss
+            text = "OPPOSITE PATTERN AFTER LOSS — ON / OFF"; setTextColor(Color.BLACK); isChecked = config.reverseOnLoss
         }
-        if (strategy == Strategy.CUSTOM) content.addView(reverse)
+        if (strategy == Strategy.CUSTOM) { content.addView(text("LOSS के बाद अगले custom prediction को उल्टा करने का विकल्प", 13f, Color.DKGRAY)); content.addView(reverse) }
         val patternInputs = mutableListOf<EditText>()
         val sideSpinners = mutableListOf<Spinner>()
         repeat(if (strategy == Strategy.CUSTOM) 5 else 3) { index ->
@@ -448,7 +448,7 @@ class MainActivity : Activity() {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("BIG", "SMALL"))
             setSelection(if (config.startingSide == Side.SMALL) 1 else 0); isEnabled = strategy == Strategy.CUSTOM
         }
-        content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting)
+        if (strategy == Strategy.CUSTOM && config.mode == StrategyMode.ALTERNATE) { content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.DKGRAY, true)); content.addView(starting) }
         val dialog = AlertDialog.Builder(this).setTitle("STRATEGY SETTINGS").setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -459,7 +459,7 @@ class MainActivity : Activity() {
                 if ((skipText.isNotBlank() && (skip == null || skip !in 0..50)) || (levelText.isNotBlank() && (threshold == null || threshold !in 1..50))) {
                     Toast.makeText(this, "SKIP 0–50 और LEVEL 1–50 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
                 }
-                val size = if (strategy == Strategy.CUSTOM && lengthSpinner.selectedItemPosition == 1) 5 else 3
+                val size = if (strategy == Strategy.CUSTOM) if (lengthSpinner.selectedItemPosition == 1) 5 else 4 else 3
                 val rules = mutableListOf<StrategyRule>()
                 for (i in patternInputs.indices) {
                     val value = patternInputs[i].text.toString().trim().uppercase()
@@ -473,7 +473,7 @@ class MainActivity : Activity() {
                 StrategyConfigStore.save(prefs, strategy, StrategyConfig(
                     mode = if (strategy == Strategy.CUSTOM) mode else StrategyMode.PATTERN,
                     skipOnLoss = skip, startingSide = if (starting.selectedItemPosition == 1) Side.SMALL else Side.BIG,
-                    rules = rules, skipAfterLevel = threshold, patternLength = size, reverseOnLoss = reverse.isChecked
+                    rules = rules, skipAfterLevel = threshold, patternLength = size, reverseOnLoss = if (strategy == Strategy.CUSTOM) reverse.isChecked else false
                 ))
                 StrategyConfigStore.setStrategyEnabled(prefs, strategy, enabled.isChecked)
                 dialog.dismiss(); Toast.makeText(this, "Strategy settings saved", Toast.LENGTH_SHORT).show()
