@@ -64,7 +64,7 @@ object BdgAutomationController {
                     val prediction = Prediction(side, strategy)
                     val level = prefs.getInt("pending_level", state.level)
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
-                    state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side)
+                    state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side, prefs = prefs)
                     saveState(prefs, state)
                     val countsAsTelegramPrediction = prefs.getBoolean("pending_telegram_bin", false)
                     val winsBefore = prefs.getInt("telegram_wins_completed", 0)
@@ -153,7 +153,7 @@ object BdgAutomationController {
         val pendingStillExists = prefs.getString("pending_period", null) != null
         if (!pendingStillExists && snapshot.currentPeriod != state.lastProcessedPeriod) {
             val patternThree = StrategyEngine.patternFromRecentResults(outcomes.map { it.side })
-            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, patternThree)
+            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, patternThree, prefs)
             state = update.state
             saveState(prefs, state)
             val prediction = update.prediction
