@@ -110,7 +110,26 @@ class MainActivity : Activity() {
             }
             loadUrl(prefs.getString("bdg_url","https://bdgwin98.com") ?: "https://bdgwin98.com")
         }
-        screen.addView(web, FrameLayout.LayoutParams(-1,-1))
+        // Reserve a blue bottom rail so BDG controls never sit underneath
+        // the Android three-button navigation area. Resize the WebView above it.
+        val bottomRailHeight = dp(40)
+        screen.addView(
+            web,
+            FrameLayout.LayoutParams(-1, -1).apply {
+                bottomMargin = bottomRailHeight
+            }
+        )
+        window.navigationBarColor = blue
+        val bottomRail = View(this).apply {
+            setBackgroundColor(blue)
+            isClickable = false
+            isFocusable = false
+            contentDescription = "Blue bottom navigation spacer"
+        }
+        screen.addView(
+            bottomRail,
+            FrameLayout.LayoutParams(-1, bottomRailHeight, Gravity.BOTTOM)
+        )
 
         val dashboard=panel().apply {
             minimumHeight=dp(310)
