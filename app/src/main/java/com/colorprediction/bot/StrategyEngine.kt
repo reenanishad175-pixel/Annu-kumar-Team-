@@ -144,7 +144,13 @@ object StrategyEngine {
             if (!builtInEnabled) {
                 return EngineUpdate(next, status = "CUSTOM SKIP • ${next.customSkipRemaining} remaining")
             }
-            state = next
+            // Built-ins retain first priority during a Custom-only skip.
+            val builtInPrediction = predict(lastThree.take(3), prefs, next.lastPrediction, next.level)
+            return if (builtInPrediction != null) {
+                EngineUpdate(next, builtInPrediction, "PREDICTION READY")
+            } else {
+                EngineUpdate(next, status = "SKIP • No configured built-in pattern")
+            }
         }
         val prediction = if (!builtInEnabled && customEnabled) {
             val config = customConfig ?: if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM) else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
