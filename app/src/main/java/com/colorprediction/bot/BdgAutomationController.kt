@@ -153,7 +153,7 @@ object BdgAutomationController {
         val pendingStillExists = prefs.getString("pending_period", null) != null
         if (!pendingStillExists && snapshot.currentPeriod != state.lastProcessedPeriod) {
             val patternThree = StrategyEngine.patternFromRecentResults(outcomes.map { it.side })
-            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, patternThree, prefs)
+            val update = StrategyEngine.onNewPeriod(state, snapshot.currentPeriod, patternThree, prefs, StrategyConfigStore.isCustomEnabled(prefs))
             state = update.state
             saveState(prefs, state)
             val prediction = update.prediction
