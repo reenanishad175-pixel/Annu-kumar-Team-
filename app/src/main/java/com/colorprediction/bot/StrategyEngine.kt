@@ -1,12 +1,15 @@
 package com.colorprediction.bot
 
+import android.content.SharedPreferences
+
 /** Pattern decision engine. BDG history is passed newest-first. */
 enum class Side { BIG, SMALL }
 enum class Strategy(val title: String) {
     TREND_BASE("Strategy 1"),
     ONE_BY_ONE("Strategy 2"),
     LAST_THREE_A("Strategy 4"),
-    LAST_THREE_B("Strategy 3")
+    LAST_THREE_B("Strategy 3"),
+    CUSTOM("Custom Strategy")
 }
 
 data class Prediction(val side: Side, val strategy: Strategy)
@@ -32,19 +35,35 @@ object StrategyEngine {
     fun recoverExpiredPending(state: EngineState, latestPeriod: String): EngineState =
         state.copy(level = 1, skipRemaining = 0, skipTotal = 0, pausedUntilMillis = 0L, lastProcessedPeriod = latestPeriod)
 
-    fun predict(lastThree: List<Side>): Prediction? {
+    fun predict(lastThree: List<Side>): Prediction? = predict(lastThree, null, null)
+
+    fun predict(lastThree: List<Side>, prefs: SharedPreferences?, lastPrediction: Side?): Prediction? {
         if (lastThree.size != 3) return null
-        val (a, b, c) = lastThree
-        return when {
-            a == Side.SMALL && b == Side.SMALL && c == Side.SMALL -> Prediction(Side.SMALL, Strategy.TREND_BASE)
-            a == Side.BIG && b == Side.BIG && c == Side.BIG -> Prediction(Side.BIG, Strategy.TREND_BASE)
-            a == Side.BIG && b == Side.SMALL && c == Side.BIG -> Prediction(Side.SMALL, Strategy.ONE_BY_ONE)
-            a == Side.SMALL && b == Side.BIG && c == Side.SMALL -> Prediction(Side.BIG, Strategy.ONE_BY_ONE)
-            a == Side.SMALL && b == Side.BIG && c == Side.BIG -> Prediction(Side.SMALL, Strategy.LAST_THREE_A)
-            a == Side.BIG && b == Side.SMALL && c == Side.SMALL -> Prediction(Side.BIG, Strategy.LAST_THREE_A)
-            a == Side.BIG && b == Side.BIG && c == Side.SMALL -> Prediction(Side.SMALL, Strategy.LAST_THREE_B)
-            a == Side.SMALL && b == Side.SMALL && c == Side.BIG -> Prediction(Side.BIG, Strategy.LAST_THREE_B)
-            else -> null
+        val pattern = lastThree.joinToString("") { if (it == Side.BIG) "B" else "S" }
+
+        // The four built-in strategies retain their established priority and
+        // defaults. Each can now be edited independently in the app.
+        val builtIns = listOf(Strategy.TREND_BASE, Strategy.ONE_BY_ONE, Strategy.LAST_THREE_B, Strategy.LAST_THREE_A)
+        for (strategy in builtIns) {
+            val config = if (prefs == null) StrategyConfigStore.defaults(strategy) else StrategyConfigStore.load(prefs, strategy)
+            val rule = config.rules.firstOrNull { it.pattern == pattern }
+            if (rule != null) return Prediction(rule.prediction, strategy)
+        }
+
+        // Custom is a fallback strategy, so it never overrides a matching
+        // built-in pattern. It can use three custom rules, alternate sides,
+        // or follow the newest observed result.
+        val custom = if (prefs == null) StrategyConfigStore.defaults(Strategy.CUSTOM)
+            else StrategyConfigStore.load(prefs, Strategy.CUSTOM)
+        return when (custom.mode) {
+            StrategyMode.PATTERN -> custom.rules.firstOrNull { it.pattern == pattern }
+                ?.let { Prediction(it.prediction, Strategy.CUSTOM) }
+            StrategyMode.ALTERNATE -> Prediction(
+                if (lastPrediction == null) custom.startingSide
+                else if (lastPrediction == Side.BIG) Side.SMALL else Side.BIG,
+                Strategy.CUSTOM
+            )
+            StrategyMode.FOLLOW_LAST -> Prediction(lastThree.first(), Strategy.CUSTOM)
         }
     }
 
@@ -62,19 +81,21 @@ object StrategyEngine {
         return EngineUpdate(state.copy(lastProcessedPeriod = period), prediction, "PREDICTION READY")
     }
 
-    fun onOutcome(state: EngineState, period: String, prediction: Prediction, actual: Side, now: Long = System.currentTimeMillis()): EngineState {
+    fun onOutcome(
+        state: EngineState,
+        period: String,
+        prediction: Prediction,
+        actual: Side,
+        now: Long = System.currentTimeMillis(),
+        prefs: SharedPreferences? = null
+    ): EngineState {
         val win = prediction.side == actual
         if (win) return state.copy(
             level = 1, skipRemaining = 0, skipTotal = 0, pausedUntilMillis = 0L,
             lastBetPeriod = period, lastPrediction = prediction.side,
             lastStrategy = prediction.strategy, lastOutcome = "WIN"
         )
-        val skips = when (prediction.strategy) {
-            Strategy.TREND_BASE -> if (state.level >= 2) 5 else 0
-            Strategy.ONE_BY_ONE -> 1
-            Strategy.LAST_THREE_A, Strategy.LAST_THREE_B -> 0
-        }
-        // No Level 8 stop or timed cooldown: the monitor keeps running without a cap.
+        val skips = StrategyConfigStore.effectiveSkip(prefs, prediction.strategy, state.level)
         return state.copy(
             level = state.level + 1, skipRemaining = skips, skipTotal = skips,
             pausedUntilMillis = 0L, lastBetPeriod = period,
