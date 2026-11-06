@@ -22,10 +22,7 @@ object StrategyConfigStore {
     private const val KEY_PREFIX = "strategy_config_"
 
     fun defaults(strategy: Strategy): StrategyConfig {
-        val rules = when (strategy) {
-            Strategy.CUSTOM -> emptyList()
-            else -> emptyList()
-        }
+        val rules: List<StrategyRule> = emptyList()
         return StrategyConfig(
             mode = if (strategy == Strategy.FOLLOW_UP) StrategyMode.FOLLOW_LAST else StrategyMode.PATTERN,
             skipOnLoss = null,
