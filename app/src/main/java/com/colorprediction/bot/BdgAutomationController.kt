@@ -66,17 +66,22 @@ object BdgAutomationController {
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
                     state = StrategyEngine.onOutcome(state, pendingPeriod, prediction, actual.side)
                     saveState(prefs, state)
-                    val countsAsTelegramBin = prefs.getBoolean("pending_telegram_bin", false)
-                    val completedTelegramBins = prefs.getInt("telegram_bins_completed", 0) +
-                        if (countsAsTelegramBin) 1 else 0
-                    if (countsAsTelegramBin) {
-                        prefs.edit().putInt("telegram_bins_completed", completedTelegramBins).apply()
+                    val countsAsTelegramPrediction = prefs.getBoolean("pending_telegram_bin", false)
+                    val winsBefore = prefs.getInt("telegram_wins_completed", 0)
+                    val completedTelegramWins = if (countsAsTelegramPrediction && outcome == "WIN") {
+                        winsBefore + 1
+                    } else {
+                        winsBefore
                     }
-                    val finalTelegramBin = countsAsTelegramBin && completedTelegramBins >= 10
+                    if (countsAsTelegramPrediction && outcome == "WIN") {
+                        prefs.edit().putInt("telegram_wins_completed", completedTelegramWins).apply()
+                    }
+                    val finalTelegramWin = countsAsTelegramPrediction &&
+                        outcome == "WIN" && completedTelegramWins >= 10
                     TelegramReports.result(
                         context, pendingPeriod,
                         prefs.getString("game_duration", "30 Seconds").orEmpty(),
-                        level, prediction, outcome, finalBin = finalTelegramBin
+                        level, prediction, outcome, finalBin = finalTelegramWin
                     )
                     prefs.edit().remove("pending_period").remove("pending_side")
                         .remove("pending_strategy").remove("pending_level").remove("pending_telegram_bin")
@@ -87,19 +92,19 @@ object BdgAutomationController {
                         .putString("recent_activity", "$pendingPeriod • ${prediction.side} • Label $level • $outcome")
                         .apply()
 
-                    if (finalTelegramBin) {
-                        // The tenth completed Telegram entry sends its final result,
-                        // then closes every later Telegram report. BDG monitoring continues.
+                    if (finalTelegramWin) {
+                        // The tenth confirmed WIN sends its result, then pauses all
+                        // automated Telegram reports. BDG monitoring continues.
                         prefs.edit()
                             .putBoolean("stop_after_win_requested", false)
                             .putBoolean("predictions_stopped", false)
                             .putBoolean("telegram_predictions_paused", true)
                             .putString("current_strategy", "")
-                            .putString("bot_status", "BDG READING ACTIVE • 10 Telegram bins completed")
-                            .putString("telegram_status", "COMPLETED • 10/10 Telegram bins")
-                            .putString("recent_activity", "$pendingPeriod • Label $level • $outcome • Telegram 10/10 complete")
+                            .putString("bot_status", "BDG READING ACTIVE • 10 Telegram wins completed")
+                            .putString("telegram_status", "COMPLETED • 10/10 WINS")
+                            .putString("recent_activity", "$pendingPeriod • Label $level • WIN • Telegram 10/10 wins complete")
                             .apply()
-                        return "BDG READING ACTIVE • Telegram 10/10 complete"
+                        return "BDG READING ACTIVE • Telegram 10/10 wins complete"
                     }
                 }
             }
@@ -164,16 +169,11 @@ object BdgAutomationController {
                     .putString("current_period", snapshot.currentPeriod)
                     .putInt("current_level", level)
                     .apply()
-                val telegramBinsStarted = prefs.getInt("telegram_bins_started", 0)
                 val telegramConfigured = prefs.getString("tg_token", "").orEmpty().isNotBlank() &&
                     prefs.getString("tg_chat", "").orEmpty().isNotBlank()
-                val countsAsTelegramBin = telegramConfigured &&
-                    !prefs.getBoolean("telegram_predictions_paused", false) &&
-                    telegramBinsStarted < 10
-                prefs.edit().putBoolean("pending_telegram_bin", countsAsTelegramBin).apply()
-                if (countsAsTelegramBin) {
-                    prefs.edit().putInt("telegram_bins_started", telegramBinsStarted + 1).apply()
-                }
+                val countsAsTelegramPrediction = telegramConfigured &&
+                    !prefs.getBoolean("telegram_predictions_paused", false)
+                prefs.edit().putBoolean("pending_telegram_bin", countsAsTelegramPrediction).apply()
                 TelegramReports.prediction(
                     context, snapshot.currentPeriod,
                     prefs.getString("game_duration", "30 Seconds").orEmpty(),
