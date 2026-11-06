@@ -20,8 +20,8 @@ object StrategyConfigStore {
     fun defaults(strategy: Strategy): StrategyConfig {
         val rules = when (strategy) {
             Strategy.TREND_BASE -> listOf(
-                StrategyRule("SSS", Side.BIG),
-                StrategyRule("BBB", Side.SMALL)
+                StrategyRule("SSS", Side.SMALL),
+                StrategyRule("BBB", Side.BIG)
             )
             Strategy.ONE_BY_ONE -> listOf(
                 StrategyRule("BSB", Side.SMALL),
