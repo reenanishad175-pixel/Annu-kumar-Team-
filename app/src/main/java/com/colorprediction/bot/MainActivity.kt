@@ -415,6 +415,14 @@ class MainActivity : Activity() {
         }
         content.addView(text("CUSTOM MODE", 13f, Color.WHITE, true).apply { gravity = Gravity.START })
         content.addView(modeSpinner)
+        val customEnabledSwitch = if (strategy == Strategy.CUSTOM) {
+            Switch(this).apply {
+                text = "ENABLE CUSTOM STRATEGY DURING SKIP PERIODS"
+                setTextColor(Color.WHITE)
+                isChecked = StrategyConfigStore.isCustomEnabled(prefs)
+            }
+        } else null
+        customEnabledSwitch?.let { content.addView(it) }
         if (strategy != Strategy.CUSTOM) {
             content.addView(text("इस strategy में नीचे दिए गए 3-result patterns match होंगे.", 11f, Color.LTGRAY))
         }
@@ -507,6 +515,7 @@ class MainActivity : Activity() {
                         rules = rules
                     )
                 )
+                customEnabledSwitch?.let { StrategyConfigStore.setCustomEnabled(prefs, it.isChecked) }
                 dialog.dismiss()
                 Toast.makeText(this, "${if (strategy == Strategy.CUSTOM) "Custom strategy" else strategy.title} saved", Toast.LENGTH_SHORT).show()
             }
