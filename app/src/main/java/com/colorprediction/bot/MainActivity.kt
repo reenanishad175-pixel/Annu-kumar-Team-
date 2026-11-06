@@ -153,37 +153,23 @@ class MainActivity : Activity() {
         messageColumn.addView(telegramStatus, LinearLayout.LayoutParams(-1, 0, 1f))
         messageColumn.addView(liveReadMessage, LinearLayout.LayoutParams(-1, 0, 1f))
         telegramBar.addView(messageColumn, LinearLayout.LayoutParams(0, dp(54), 1f))
-        val startButton = TextView(this).apply {
-            text = "▶"
-            textSize = 19f
-            setTextColor(Color.rgb(20, 130, 70))
+        val strategyEditButton = TextView(this).apply {
+            text = "EDIT"
+            textSize = 12f
+            setTypeface(null, 1)
+            setTextColor(Color.rgb(20, 82, 160))
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.rgb(220, 252, 231))
-            contentDescription = "Start predictions"
+            setBackgroundColor(Color.rgb(219, 234, 254))
+            contentDescription = "Edit prediction strategies"
             isClickable = true
             isFocusable = true
-            setOnClickListener {
-                prefs.edit()
-                    .putBoolean("predictions_stopped", false)
-                    .putBoolean("stop_after_win_requested", false)
-                    .putBoolean("telegram_predictions_paused", false)
-                    .putInt("telegram_wins_completed", 0)
-                    .putBoolean("pending_telegram_bin", false)
-                    .putString("current_prediction", "WAITING")
-                    .putString("bot_status", "START REQUESTED • waiting for next BDG period")
-                    .putString("recent_activity", "Prediction monitoring restarted")
-                    .apply()
-                val monitorIntent = android.content.Intent(this@MainActivity, BdgMonitoringService::class.java)
-                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(monitorIntent) else startService(monitorIntent)
-                refreshDashboard("START REQUESTED • waiting for next BDG period")
-                Toast.makeText(this@MainActivity, "Predictions started • waiting for next period", Toast.LENGTH_LONG).show()
-            }
+            setOnClickListener { showStrategyChooser() }
         }
-        val startParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+        val strategyEditParams = LinearLayout.LayoutParams(dp(68), dp(44)).apply {
             leftMargin = dp(6)
-            rightMargin = dp(8)
+            rightMargin = dp(6)
         }
-        telegramBar.addView(startButton, startParams)
+        telegramBar.addView(strategyEditButton, strategyEditParams)
 
         val referButton = TextView(this).apply {
             text = "↗"
@@ -384,6 +370,150 @@ class MainActivity : Activity() {
         }
         dialog.show()
     }
+    private fun showStrategyChooser() {
+        val strategies = listOf(
+            Strategy.TREND_BASE,
+            Strategy.ONE_BY_ONE,
+            Strategy.LAST_THREE_B,
+            Strategy.LAST_THREE_A,
+            Strategy.CUSTOM
+        )
+        val labels = arrayOf("STRATEGY 1", "STRATEGY 2", "STRATEGY 3", "STRATEGY 4", "CUSTOM STRATEGY")
+        AlertDialog.Builder(this)
+            .setTitle("EDIT STRATEGY")
+            .setItems(labels) { _, which -> showStrategyEditor(strategies[which]) }
+            .setNegativeButton("CLOSE", null)
+            .show()
+    }
+
+    private fun showStrategyEditor(strategy: Strategy) {
+        val config = StrategyConfigStore.load(prefs, strategy)
+        val scroll = ScrollView(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(12))
+        }
+        scroll.addView(content)
+        content.addView(text(
+            if (strategy == Strategy.CUSTOM) "CUSTOM STRATEGY" else strategy.title.uppercase(),
+            18f, Color.CYAN, true
+        ))
+        content.addView(text(
+            "Pattern में पुराने 3 result लिखें: B = BIG, S = SMALL. उदाहरण: BSB",
+            12f, Color.LTGRAY
+        ))
+
+        val modeOptions = listOf("PATTERN MATCHING", "ONE BIG / ONE SMALL", "FOLLOW LATEST RESULT")
+        val modeSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, modeOptions)
+            setSelection(when (config.mode) {
+                StrategyMode.PATTERN -> 0
+                StrategyMode.ALTERNATE -> 1
+                StrategyMode.FOLLOW_LAST -> 2
+            })
+            isEnabled = strategy == Strategy.CUSTOM
+        }
+        content.addView(text("CUSTOM MODE", 13f, Color.WHITE, true).apply { gravity = Gravity.START })
+        content.addView(modeSpinner)
+        if (strategy != Strategy.CUSTOM) {
+            content.addView(text("इस strategy में नीचे दिए गए 3-result patterns match होंगे.", 11f, Color.LTGRAY))
+        }
+
+        val skipInput = EditText(this).apply {
+            hint = "Default: ${StrategyConfigStore.defaultSkipLabel(strategy)}"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.LTGRAY)
+            setText(config.skipOnLoss?.toString().orEmpty())
+        }
+        content.addView(text("LOSS के बाद कितने नए period SKIP करने हैं? (0–50)", 13f, Color.WHITE, true).apply { gravity = Gravity.START })
+        content.addView(skipInput)
+        content.addView(text("खाली छोड़ने पर इस strategy का पुराना default रहेगा.", 11f, Color.LTGRAY))
+
+        val patternInputs = mutableListOf<EditText>()
+        val sideSpinners = mutableListOf<Spinner>()
+        val sideOptions = listOf("BIG", "SMALL")
+        repeat(3) { index ->
+            val defaultRule = config.rules.getOrNull(index)
+            content.addView(text("PATTERN ${index + 1}", 13f, Color.CYAN, true).apply { gravity = Gravity.START })
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val patternInput = EditText(this).apply {
+                hint = "उदा. BSB"
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                filters = arrayOf(android.text.InputFilter.LengthFilter(3), android.text.InputFilter.AllCaps())
+                setSingleLine(true)
+                setTextColor(Color.WHITE)
+                setHintTextColor(Color.LTGRAY)
+                setText(defaultRule?.pattern.orEmpty())
+            }
+            val sideSpinner = Spinner(this).apply {
+                adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, sideOptions)
+                setSelection(if (defaultRule?.prediction == Side.SMALL) 1 else 0)
+            }
+            row.addView(patternInput, LinearLayout.LayoutParams(0, dp(52), 1f))
+            row.addView(sideSpinner, LinearLayout.LayoutParams(dp(112), dp(48)))
+            content.addView(row)
+            patternInputs.add(patternInput)
+            sideSpinners.add(sideSpinner)
+        }
+        val startingSide = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, sideOptions)
+            setSelection(if (config.startingSide == Side.SMALL) 1 else 0)
+            isEnabled = strategy == Strategy.CUSTOM
+        }
+        content.addView(text("ONE-BY-ONE का पहला SIDE", 13f, Color.WHITE, true).apply { gravity = Gravity.START })
+        content.addView(startingSide)
+        content.addView(text("CUSTOM MODE में ONE BIG / ONE SMALL चुनने पर यहीं से क्रम शुरू होगा.", 11f, Color.LTGRAY))
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("STRATEGY SETTINGS")
+            .setView(scroll)
+            .setNegativeButton("CANCEL", null)
+            .setPositiveButton("SAVE", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val skipText = skipInput.text.toString().trim()
+                val skip = if (skipText.isBlank()) null else skipText.toIntOrNull()
+                if (skipText.isNotBlank() && (skip == null || skip !in 0..50)) {
+                    Toast.makeText(this, "SKIP 0 से 50 के बीच रखें", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val rules = mutableListOf<StrategyRule>()
+                for (i in patternInputs.indices) {
+                    val pattern = patternInputs[i].text.toString().trim().uppercase()
+                    if (pattern.isBlank()) continue
+                    if (pattern.length != 3 || pattern.any { it != 'B' && it != 'S' }) {
+                        Toast.makeText(this, "हर pattern में केवल 3 अक्षर B या S रखें", Toast.LENGTH_LONG).show()
+                        return@setOnClickListener
+                    }
+                    rules.add(StrategyRule(pattern, if (sideSpinners[i].selectedItemPosition == 1) Side.SMALL else Side.BIG))
+                }
+                val mode = when (modeSpinner.selectedItemPosition) {
+                    1 -> StrategyMode.ALTERNATE
+                    2 -> StrategyMode.FOLLOW_LAST
+                    else -> StrategyMode.PATTERN
+                }
+                StrategyConfigStore.save(
+                    prefs, strategy,
+                    StrategyConfig(
+                        mode = if (strategy == Strategy.CUSTOM) mode else StrategyMode.PATTERN,
+                        skipOnLoss = skip,
+                        startingSide = if (startingSide.selectedItemPosition == 1) Side.SMALL else Side.BIG,
+                        rules = rules
+                    )
+                )
+                dialog.dismiss()
+                Toast.makeText(this, "${if (strategy == Strategy.CUSTOM) "Custom strategy" else strategy.title} saved", Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
+    }
+
     private fun showBotSettings() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setBackgroundColor(bg); setPadding(dp(18),dp(12),dp(18),dp(12)) }
         root.addView(text("BOT SETTINGS",22f,Color.CYAN,true))
