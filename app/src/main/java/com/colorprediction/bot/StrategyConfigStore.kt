@@ -78,6 +78,15 @@ object StrategyConfigStore {
         prefs.edit().putString(KEY_PREFIX + strategy.name, json.toString()).apply()
     }
 
+    private const val CUSTOM_ENABLED_KEY = "custom_strategy_enabled"
+
+    fun isCustomEnabled(prefs: SharedPreferences): Boolean =
+        prefs.getBoolean(CUSTOM_ENABLED_KEY, false)
+
+    fun setCustomEnabled(prefs: SharedPreferences, enabled: Boolean) {
+        prefs.edit().putBoolean(CUSTOM_ENABLED_KEY, enabled).apply()
+    }
+
     fun defaultSkipLabel(strategy: Strategy): String = when (strategy) {
         Strategy.TREND_BASE -> "5 (Level 2+)"
         Strategy.ONE_BY_ONE -> "1"
