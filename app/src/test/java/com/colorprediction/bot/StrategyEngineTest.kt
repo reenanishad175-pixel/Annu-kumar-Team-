@@ -111,6 +111,44 @@ class StrategyEngineTest {
         assertEquals(3, result.state.skipRemaining)
         assertEquals("P1", result.state.lastProcessedPeriod)
     }
+    @Test fun catchUpDoesNotConsumeCurrentOpenPeriodBeforeCustomReplacement() {
+        val initial = EngineState(
+            skipRemaining = 2,
+            skipTotal = 2,
+            lastProcessedPeriod = "100"
+        )
+        val caughtUp = StrategyEngine.catchUpClosedSkipPeriods(initial, listOf("100"))
+        assertEquals(2, caughtUp.skipRemaining)
+        assertEquals("100", caughtUp.lastProcessedPeriod)
+
+        val custom = StrategyConfig(
+            mode = StrategyMode.ALTERNATE,
+            skipOnLoss = null,
+            startingSide = Side.BIG,
+            rules = emptyList()
+        )
+        val current = StrategyEngine.onNewPeriod(
+            caughtUp, "101", s(Side.BIG, Side.BIG, Side.BIG),
+            customStrategyEnabled = true, customConfig = custom
+        )
+        assertEquals(Prediction(Side.BIG, Strategy.CUSTOM), current.prediction)
+        assertEquals(1, current.state.skipRemaining)
+    }
+
+    @Test fun catchUpConsumesOnlyAlreadyClosedSkipPeriods() {
+        val initial = EngineState(
+            skipRemaining = 3,
+            skipTotal = 3,
+            lastProcessedPeriod = "100"
+        )
+        val caughtUp = StrategyEngine.catchUpClosedSkipPeriods(
+            initial, listOf("102", "101", "100")
+        )
+        assertEquals(1, caughtUp.skipRemaining)
+        assertEquals(3, caughtUp.skipTotal)
+        assertEquals("102", caughtUp.lastProcessedPeriod)
+    }
+
     @Test fun enabledCustomStrategyTradesInsideBuiltInSkipWindowForExactSkipCount() {
         val custom = StrategyConfig(
             mode = StrategyMode.ALTERNATE,

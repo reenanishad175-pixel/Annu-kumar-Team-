@@ -129,31 +129,17 @@ object BdgAutomationController {
                 .apply()
         }
 
-        // Consume already elapsed skip periods after a pause/screen-off without
-        // creating predictions for periods that have already closed.
+        // Catch up only periods whose results are already closed. Do not consume
+        // the currently open period here: onNewPeriod must see its remaining
+        // built-in skip and allow Custom to replace it when enabled.
         val pendingStillExistsBeforeCatchUp = prefs.getString("pending_period", null) != null
-        if (!pendingStillExistsBeforeCatchUp && !resolvedPendingThisCycle &&
-            state.skipRemaining > 0 && state.lastProcessedPeriod != null) {
-            val elapsed = outcomes.count { comparePeriodIds(it.period, state.lastProcessedPeriod!!) > 0 }
-            val currentIsNew = comparePeriodIds(snapshot.currentPeriod, state.lastProcessedPeriod!!) > 0
-            val periodsToConsume = elapsed + if (currentIsNew && outcomes.none { it.period == snapshot.currentPeriod }) 1 else 0
-            if (periodsToConsume > 0) {
-                val remaining = (state.skipRemaining - periodsToConsume).coerceAtLeast(0)
-                state = state.copy(
-                    skipRemaining = remaining,
-                    skipTotal = if (remaining == 0) 0 else state.skipTotal,
-                    lastProcessedPeriod = snapshot.currentPeriod
-                )
+        if (!pendingStillExistsBeforeCatchUp && !resolvedPendingThisCycle) {
+            val caughtUp = StrategyEngine.catchUpClosedSkipPeriods(
+                state, outcomes.map { it.period }
+            )
+            if (caughtUp != state) {
+                state = caughtUp
                 saveState(prefs, state)
-                prefs.edit()
-                    .putString("current_prediction", if (remaining > 0) "SKIP" else "WAITING")
-                    .putString("current_strategy", "")
-                    .putString("current_period", snapshot.currentPeriod)
-                    .putInt("current_level", state.level)
-                    .putString("bot_status", if (remaining > 0) "SKIP • $remaining remaining" else "SKIP COMPLETE • Waiting for next period")
-                    .apply()
-                TelegramReports.skip(context, snapshot.currentPeriod, remaining, state.level)
-                return prefs.getString("bot_status", "BDG DATA DETECTED").orEmpty()
             }
         }
 

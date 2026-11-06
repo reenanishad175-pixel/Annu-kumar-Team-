@@ -38,6 +38,35 @@ object StrategyEngine {
     fun recoverExpiredPending(state: EngineState, latestPeriod: String): EngineState =
         state.copy(level = 1, skipRemaining = 0, skipTotal = 0, customSkipRemaining = 0, pausedUntilMillis = 0L, lastProcessedPeriod = latestPeriod)
 
+    /**
+     * Consume only skip periods that have already closed while monitoring was
+     * paused. The currentPeriod is still open and must be handled by onNewPeriod
+     * so an enabled Custom strategy can replace the built-in skip there.
+     */
+    fun catchUpClosedSkipPeriods(state: EngineState, closedPeriods: List<String>): EngineState {
+        val lastProcessed = state.lastProcessedPeriod ?: return state
+        if (state.skipRemaining <= 0) return state
+        val elapsed = closedPeriods.filter { comparePeriodIds(it, lastProcessed) > 0 }
+        if (elapsed.isEmpty()) return state
+        val latestClosed = elapsed.maxWithOrNull { a, b -> comparePeriodIds(a, b) } ?: return state
+        val consumed = minOf(state.skipRemaining, elapsed.size)
+        val remaining = state.skipRemaining - consumed
+        return state.copy(
+            skipRemaining = remaining,
+            skipTotal = if (remaining == 0) 0 else state.skipTotal,
+            lastProcessedPeriod = latestClosed
+        )
+    }
+
+    private fun comparePeriodIds(a: String, b: String): Int {
+        val left = a.trimStart('0')
+        val right = b.trimStart('0')
+        return when {
+            left.length != right.length -> left.length.compareTo(right.length)
+            else -> left.compareTo(right)
+        }
+    }
+
     fun predict(lastThree: List<Side>): Prediction? = predict(lastThree, null, null)
 
     /** One-by-One takes priority when the last three results alternate; Follow Up is the fallback. */
