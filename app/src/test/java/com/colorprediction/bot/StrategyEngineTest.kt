@@ -186,4 +186,85 @@ class StrategyEngineTest {
         assertEquals(3, result.state.skipRemaining)
         assertEquals("P1", result.state.lastProcessedPeriod)
     }
+    @Test fun enabledCustomStrategyTradesInsideBuiltInSkipWindowForExactSkipCount() {
+        val custom = StrategyConfig(
+            mode = StrategyMode.ALTERNATE,
+            skipOnLoss = null,
+            startingSide = Side.BIG,
+            rules = emptyList()
+        )
+        var state = EngineState(
+            level = 4,
+            skipRemaining = 2,
+            skipTotal = 2,
+            lastProcessedPeriod = "P0"
+        )
+
+        val first = StrategyEngine.onNewPeriod(
+            state, "P1", s(Side.BIG, Side.BIG, Side.BIG),
+            customStrategyEnabled = true, customConfig = custom
+        )
+        assertEquals(Prediction(Side.BIG, Strategy.CUSTOM), first.prediction)
+        assertEquals(1, first.state.skipRemaining)
+        assertTrue(first.status.startsWith("CUSTOM STRATEGY ACTIVE"))
+
+        // A custom LOSS must not change the original strategy's level or
+        // extend/cancel the two-period skip window.
+        state = StrategyEngine.onOutcome(
+            first.state, "P1", first.prediction!!, Side.SMALL, 1000L
+        )
+        assertEquals(4, state.level)
+        assertEquals(1, state.skipRemaining)
+        assertEquals(2, state.skipTotal)
+
+        val second = StrategyEngine.onNewPeriod(
+            state, "P2", s(Side.BIG, Side.BIG, Side.BIG),
+            customStrategyEnabled = true, customConfig = custom
+        )
+        assertEquals(Prediction(Side.SMALL, Strategy.CUSTOM), second.prediction)
+        assertEquals(0, second.state.skipRemaining)
+
+        state = StrategyEngine.onOutcome(
+            second.state, "P2", second.prediction!!, Side.SMALL, 2000L
+        )
+        assertEquals(4, state.level)
+        assertEquals(0, state.skipRemaining)
+        assertEquals(0, state.skipTotal)
+    }
+
+    @Test fun disabledCustomStrategyKeepsNormalSkipBehavior() {
+        val result = StrategyEngine.onNewPeriod(
+            EngineState(skipRemaining = 2, skipTotal = 2, lastProcessedPeriod = "P0"),
+            "P1",
+            s(Side.BIG, Side.BIG, Side.BIG),
+            customStrategyEnabled = false
+        )
+        assertNull(result.prediction)
+        assertTrue(result.status.startsWith("SKIP"))
+        assertEquals(1, result.state.skipRemaining)
+    }
+
+    @Test fun customPatternModeOnlyPredictsWhenItsConfiguredPatternMatches() {
+        val custom = StrategyConfig(
+            mode = StrategyMode.PATTERN,
+            skipOnLoss = null,
+            startingSide = Side.BIG,
+            rules = listOf(StrategyRule("BSB", Side.SMALL))
+        )
+        val matched = StrategyEngine.onNewPeriod(
+            EngineState(skipRemaining = 1, skipTotal = 1, lastProcessedPeriod = "P0"),
+            "P1", s(Side.BIG, Side.SMALL, Side.BIG),
+            customStrategyEnabled = true, customConfig = custom
+        )
+        assertEquals(Prediction(Side.SMALL, Strategy.CUSTOM), matched.prediction)
+        val unmatched = StrategyEngine.onNewPeriod(
+            EngineState(skipRemaining = 1, skipTotal = 1, lastProcessedPeriod = "P0"),
+            "P1", s(Side.BIG, Side.BIG, Side.BIG),
+            customStrategyEnabled = true, customConfig = custom
+        )
+        assertNull(unmatched.prediction)
+        assertTrue(unmatched.status.startsWith("CUSTOM STRATEGY"))
+        assertEquals(0, unmatched.state.skipRemaining)
+    }
+
 }
