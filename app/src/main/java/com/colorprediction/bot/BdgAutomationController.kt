@@ -13,6 +13,7 @@ object BdgAutomationController {
         var state = loadState(prefs)
         var pendingPeriod = prefs.getString("pending_period", null)
         val outcomes = snapshot.recentOutcomes
+        var resolvedPendingThisCycle = false
 
         val detectedDuration = snapshot.gameDuration
         val activeDuration = prefs.getString("active_game_duration", null)
@@ -61,6 +62,7 @@ object BdgAutomationController {
                 val side = runCatching { Side.valueOf(prefs.getString("pending_side", "")!!) }.getOrNull()
                 val strategy = runCatching { Strategy.valueOf(prefs.getString("pending_strategy", "")!!) }.getOrNull()
                 if (side != null && strategy != null) {
+                    resolvedPendingThisCycle = true
                     val prediction = Prediction(side, strategy)
                     val level = prefs.getInt("pending_level", state.level)
                     val outcome = if (side == actual.side) "WIN" else "LOSS"
@@ -126,7 +128,8 @@ object BdgAutomationController {
         // Consume already elapsed skip periods after a pause/screen-off without
         // creating predictions for periods that have already closed.
         val pendingStillExistsBeforeCatchUp = prefs.getString("pending_period", null) != null
-        if (!pendingStillExistsBeforeCatchUp && state.skipRemaining > 0 && state.lastProcessedPeriod != null) {
+        if (!pendingStillExistsBeforeCatchUp && !resolvedPendingThisCycle &&
+            state.skipRemaining > 0 && state.lastProcessedPeriod != null) {
             val elapsed = outcomes.count { comparePeriodIds(it.period, state.lastProcessedPeriod!!) > 0 }
             val currentIsNew = comparePeriodIds(snapshot.currentPeriod, state.lastProcessedPeriod!!) > 0
             val periodsToConsume = elapsed + if (currentIsNew && outcomes.none { it.period == snapshot.currentPeriod }) 1 else 0
