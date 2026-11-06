@@ -32,13 +32,16 @@ object TelegramReports {
         )
     }
 
-    fun result(context: Context, period: String, duration: String, level: Int, prediction: Prediction, outcome: String) {
+    fun result(
+        context: Context, period: String, duration: String, level: Int,
+        prediction: Prediction, outcome: String, finalBin: Boolean = false
+    ) {
         val prefs = context.applicationContext.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
-        if (prefs.getBoolean("telegram_predictions_paused", false)) return
+        if (prefs.getBoolean("telegram_predictions_paused", false) && !finalBin) return
         enqueue(
             context,
             "$outcome\nPeriod: $period\nPrediction: ${prediction.side}\nLabel: $level",
-            "RESULT"
+            if (finalBin) "FINAL_RESULT" else "RESULT"
         )
     }
 
@@ -94,7 +97,7 @@ object TelegramReports {
         } ?: return
 
         val prefs = item.context.getSharedPreferences("bot_settings", Context.MODE_PRIVATE)
-        if (item.label != "REFERRAL" &&
+        if (item.label != "REFERRAL" && item.label != "FINAL_RESULT" &&
             prefs.getBoolean("telegram_predictions_paused", false)) {
             prefs.edit().putString("telegram_status", "PAUSED • Telegram reports").apply()
             sendNext()
