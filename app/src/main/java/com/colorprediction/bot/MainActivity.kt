@@ -397,8 +397,8 @@ class MainActivity : Activity() {
         content.addView(enabled)
         if (strategy == Strategy.CUSTOM) content.addView(text("दोनों built-in OFF = Custom अकेली चलेगी। कोई built-in ON = Custom उसके SKIP PERIOD में चलेगी।", 12f, Color.DKGRAY))
         val modeSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("PATTERN MATCHING", "ONE BIG / ONE SMALL", "FOLLOW LATEST RESULT"))
-            setSelection(when (config.mode) { StrategyMode.PATTERN -> 0; StrategyMode.ALTERNATE -> 1; StrategyMode.FOLLOW_LAST -> 2 })
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("PATTERN MATCHING", "ONE BIG / ONE SMALL", "FOLLOW LATEST RESULT", "OPPOSITE OF LATEST RESULT"))
+            setSelection(when (config.mode) { StrategyMode.PATTERN -> 0; StrategyMode.ALTERNATE -> 1; StrategyMode.FOLLOW_LAST -> 2; StrategyMode.OPPOSITE_LAST -> 3 })
             isEnabled = strategy == Strategy.CUSTOM
         }
         if (strategy == Strategy.CUSTOM) { content.addView(text("CUSTOM MODE", 14f, Color.DKGRAY, true)); content.addView(modeSpinner) }
@@ -465,14 +465,15 @@ class MainActivity : Activity() {
             val updateModeOptions = {
                 val isPattern = modeSpinner.selectedItemPosition == 0
                 val isOneByOne = modeSpinner.selectedItemPosition == 1
+                val isOppositeLast = modeSpinner.selectedItemPosition == 3
                 val patternVisibility = if (isPattern) View.VISIBLE else View.GONE
                 patternLengthLabel.visibility = patternVisibility
                 lengthSpinner.visibility = patternVisibility
                 patternEditor.visibility = patternVisibility
                 startingLabel.visibility = if (isOneByOne) View.VISIBLE else View.GONE
                 starting.visibility = if (isOneByOne) View.VISIBLE else View.GONE
-                reverseHint.visibility = View.VISIBLE
-                reverse.visibility = View.VISIBLE
+                reverseHint.visibility = if (isOppositeLast) View.GONE else View.VISIBLE
+                reverse.visibility = if (isOppositeLast) View.GONE else View.VISIBLE
             }
             modeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -494,7 +495,7 @@ class MainActivity : Activity() {
                     (strategy != Strategy.CUSTOM && (levelCount == null || levelCount !in 1..8))) {
                     Toast.makeText(this, "SKIP 0–50, SKIP START LEVEL 1–8 और LEVEL COUNT 1–8 रखें", Toast.LENGTH_LONG).show(); return@setOnClickListener
                 }
-                val mode = when (modeSpinner.selectedItemPosition) { 1 -> StrategyMode.ALTERNATE; 2 -> StrategyMode.FOLLOW_LAST; else -> StrategyMode.PATTERN }
+                val mode = when (modeSpinner.selectedItemPosition) { 1 -> StrategyMode.ALTERNATE; 2 -> StrategyMode.FOLLOW_LAST; 3 -> StrategyMode.OPPOSITE_LAST; else -> StrategyMode.PATTERN }
                 val size = if (strategy == Strategy.CUSTOM) if (lengthSpinner.selectedItemPosition == 1) 5 else 4 else 3
                 val rules = mutableListOf<StrategyRule>()
                 // Pattern fields are read and saved only in PATTERN MATCHING mode.
