@@ -95,14 +95,18 @@ object StrategyEngine {
         lastPrediction: Side?,
         previousLoss: Boolean = false
     ): Prediction? {
-        if (lastThree.size < config.patternLength) return null
+        // Only pattern matching needs a 4/5-result history; last-result modes need the latest result only.
+        if (config.mode == StrategyMode.PATTERN && lastThree.size < config.patternLength) return null
+        if (lastThree.isEmpty()) return null
         val pattern = lastThree.take(config.patternLength).joinToString("") { if (it == Side.BIG) "B" else "S" }
         val base = when (config.mode) {
             StrategyMode.PATTERN -> config.rules.firstOrNull { it.pattern == pattern }?.let { Prediction(it.prediction, Strategy.CUSTOM) }
             StrategyMode.ALTERNATE -> Prediction(if (lastPrediction == null) config.startingSide else if (lastPrediction == Side.BIG) Side.SMALL else Side.BIG, Strategy.CUSTOM)
             StrategyMode.FOLLOW_LAST -> Prediction(lastThree.first(), Strategy.CUSTOM)
+            StrategyMode.OPPOSITE_LAST -> Prediction(if (lastThree.first() == Side.BIG) Side.SMALL else Side.BIG, Strategy.CUSTOM)
         }
-        return if (base != null && config.reverseOnLoss && previousLoss) base.copy(side = if (base.side == Side.BIG) Side.SMALL else Side.BIG) else base
+        // OPPOSITE_LAST is already the inverse of the latest result; do not invert it a second time.
+        return if (base != null && config.mode != StrategyMode.OPPOSITE_LAST && config.reverseOnLoss && previousLoss) base.copy(side = if (base.side == Side.BIG) Side.SMALL else Side.BIG) else base
     }
 
     fun onNewPeriod(
