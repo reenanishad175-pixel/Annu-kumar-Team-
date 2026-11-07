@@ -282,6 +282,24 @@ class StrategyEngineTest {
     }
 
 
+    @Test fun customOppositeLatestResultInvertsNewestSideAndNeedsOnlyOneResult() {
+        val custom = StrategyConfig(
+            mode = StrategyMode.OPPOSITE_LAST,
+            skipOnLoss = null,
+            startingSide = Side.BIG,
+            rules = emptyList(),
+            patternLength = 5
+        )
+        assertEquals(
+            Prediction(Side.SMALL, Strategy.CUSTOM),
+            StrategyEngine.predictCustom(s(Side.BIG), custom, null)
+        )
+        assertEquals(
+            Prediction(Side.BIG, Strategy.CUSTOM),
+            StrategyEngine.predictCustom(s(Side.SMALL), custom, null)
+        )
+    }
+
     @Test fun builtInsUseOneByOneThenFollowUpFallback() {
         val oneByOne = StrategyEngine.predict(s(Side.BIG, Side.SMALL, Side.BIG))!!
         assertEquals(Side.SMALL, oneByOne.side)
