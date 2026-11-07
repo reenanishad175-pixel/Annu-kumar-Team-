@@ -4,7 +4,7 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class StrategyMode { PATTERN, ALTERNATE, FOLLOW_LAST }
+enum class StrategyMode { PATTERN, ALTERNATE, FOLLOW_LAST, OPPOSITE_LAST }
 
 data class StrategyRule(val pattern: String, val prediction: Side)
 data class StrategyConfig(
